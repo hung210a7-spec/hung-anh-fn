@@ -108,6 +108,54 @@
       text-align: center; color: rgba(255,255,255,0.2);
       font-size: 12px; margin: 4px 0;
     }
+    /* Date input dark style */
+    .auth-field input[type='date'] { color-scheme: dark; }
+
+    /* ===== GREETING POPUP ===== */
+    #greeting-popup {
+      position: fixed; inset: 0; z-index: 10000;
+      background: rgba(0,0,0,0.7); backdrop-filter: blur(8px);
+      display: flex; align-items: center; justify-content: center;
+      padding: 24px; opacity: 0; pointer-events: none;
+      transition: opacity 0.4s;
+    }
+    #greeting-popup.show { opacity: 1; pointer-events: all; }
+    .greeting-card {
+      background: linear-gradient(145deg, #1a1d2e, #252840);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 28px; padding: 40px 28px 32px;
+      text-align: center; max-width: 360px; width: 100%;
+      position: relative; overflow: hidden;
+    }
+    .greeting-emoji { font-size: 64px; margin-bottom: 16px; display: block;
+      animation: bounce 0.8s ease infinite alternate; }
+    @keyframes bounce { from { transform: scale(1); } to { transform: scale(1.15); } }
+    .greeting-title {
+      font-size: 24px; font-weight: 800; color: #fff;
+      margin: 0 0 10px; letter-spacing: -0.5px;
+    }
+    .greeting-msg {
+      font-size: 15px; color: rgba(255,255,255,0.6);
+      line-height: 1.6; margin: 0 0 24px;
+    }
+    .greeting-close {
+      width: 100%; padding: 13px;
+      background: linear-gradient(135deg, #4F6BF0, #7C3AED);
+      border: none; border-radius: 14px; color: #fff;
+      font-size: 15px; font-weight: 700; cursor: pointer;
+      font-family: 'Inter', sans-serif;
+    }
+    .confetti-wrap {
+      position: absolute; inset: 0; pointer-events: none; overflow: hidden;
+    }
+    .confetti-dot {
+      position: absolute; width: 8px; height: 8px; border-radius: 50%;
+      animation: fall linear infinite;
+    }
+    @keyframes fall {
+      from { transform: translateY(-20px) rotate(0deg); opacity: 1; }
+      to   { transform: translateY(500px) rotate(720deg); opacity: 0; }
+    }
   </style>
 </head>
 <body>
@@ -156,10 +204,25 @@
           <label>Xác nhận mật khẩu</label>
           <input type="password" id="reg-confirm" placeholder="Nhập lại mật khẩu" autocomplete="new-password" />
         </div>
+        <div class="auth-field">
+          <label>Ngày sinh (tùy chọn)</label>
+          <input type="date" id="reg-birthday" />
+        </div>
         <div class="auth-error" id="reg-error"></div>
         <div class="auth-success" id="reg-success"></div>
         <button class="auth-btn" id="btn-register" onclick="registerUser()">Tạo tài khoản</button>
       </div>
+    </div>
+  </div>
+
+  <!-- ===== GREETING POPUP ===== -->
+  <div id="greeting-popup">
+    <div class="greeting-card">
+      <div class="confetti-wrap" id="confetti-wrap"></div>
+      <span class="greeting-emoji" id="greeting-emoji">🎉</span>
+      <div class="greeting-title" id="greeting-title">Chúc mừng!</div>
+      <div class="greeting-msg" id="greeting-msg"></div>
+      <button class="greeting-close" onclick="closeGreeting()">Cảm ơn! 🙏</button>
     </div>
   </div>
 

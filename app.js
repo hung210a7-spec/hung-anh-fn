@@ -85,12 +85,12 @@ function registerUser() {
   setAuthLoading('btn-register', true);
   auth.createUserWithEmailAndPassword(email, password)
     .then((userCredential) => {
-      // Save display name to be used in loadUserData
+      // Save display name and birthday to be used in loadUserData
       window._pendingRegName = name;
+      window._pendingRegBirthday = document.getElementById('reg-birthday').value || '';
       const el = document.getElementById('reg-success');
       el.textContent = `✅ Chào mừng ${name}! Đang chuyển hướng...`;
       el.classList.add('show');
-      // onAuthStateChanged will auto-login and load app
     })
     .catch(err => {
       setAuthLoading('btn-register', false);
@@ -209,6 +209,11 @@ function loadUserData(uid) {
           data.profile.name = window._pendingRegName;
           window._pendingRegName = null;
         }
+        // Save birthday if provided
+        if (window._pendingRegBirthday) {
+          data.profile.birthday = window._pendingRegBirthday;
+          window._pendingRegBirthday = null;
+        }
         // Update profile email to their Firebase email
         if (currentUser && currentUser.email) {
           data.profile.email = currentUser.email;
@@ -229,6 +234,8 @@ function loadUserData(uid) {
       document.querySelector('.settings-email').textContent = data.profile.email;
       renderDashboard();
       showSyncIndicator('Chào mừng trở lại! ✅');
+      // 🎉 Check birthday & holidays
+      setTimeout(() => checkGreetings(data.profile), 800);
     })
     .catch(err => {
       console.warn('⚠️ Không thể kết nối Firestore:', err);
@@ -980,3 +987,77 @@ window.addEventListener('resize', () => {
   }
 });
 
+// ==================== GREETING SYSTEM ====================
+const HOLIDAYS = [
+  { month: 1,  day: 1,  emoji: '🎆', title: 'Chúc Mừng Năm Mới!', msg: 'Một năm mới tràn đầy sức khỏe, hạnh phúc và thịnh vượng! Mọi ước mơ đều thành hiện thực nhé! 🌟' },
+  { month: 1,  day: 29, emoji: '🧧', title: 'Chúc Mừng Tết Nguyên Đán!', msg: 'Vạn sự như ý, tài lộc dồi dào, sức khỏe dồi dào! Năm mới an khang thịnh vượng! 🎊' },
+  { month: 1,  day: 30, emoji: '🧧', title: 'Tết Nguyên Đán!', msg: 'Chúc bạn năm mới nhiều niềm vui, may mắn và tài lộc! 🍊' },
+  { month: 1,  day: 31, emoji: '🧧', title: 'Năm Mới Đã Tới!', msg: 'Những điều tốt đẹp nhất đang chờ bạn phía trước! Chúc một năm bình an! 🎴' },
+  { month: 3,  day: 8,  emoji: '🌸', title: 'Quốc Tế Phụ Nữ 8/3!', msg: 'Chúc mừng ngày Quốc tế Phụ nữ! Bạn thật đặc biệt và tuyệt vời! 💐' },
+  { month: 4,  day: 30, emoji: '🇻🇳', title: 'Ngày Giải Phóng 30/4!', msg: 'Chúc mừng ngày Giải phóng miền Nam thống nhất đất nước! Vui lòng hào! 🎉' },
+  { month: 5,  day: 1,  emoji: '⚒️', title: 'Quốc Tế Lao Động 1/5!', msg: 'Chúc mừng ngày Quốc tế Lao động! Chúc bạn luôn thành công trong công việc! 💪' },
+  { month: 6,  day: 1,  emoji: '🧒', title: 'Quốc Tế Thiếu Nhi 1/6!', msg: 'Chúc mừng ngày Quốc tế Thiếu nhi! Hãy giữ mãi trái tim trẻ thơ! 🎠' },
+  { month: 9,  day: 2,  emoji: '🎌', title: 'Quốc Khánh 2/9!', msg: 'Chúc mừng ngày Quốc khánh Việt Nam! Tự hào là người Việt Nam! 🇻🇳' },
+  { month: 10, day: 20, emoji: '🌹', title: 'Ngày Phụ Nữ Việt Nam 20/10!', msg: 'Chúc mừng ngày Phụ nữ Việt Nam! Luôn xinh đẹp, hạnh phúc và thành công! 💕' },
+  { month: 11, day: 20, emoji: '🍎', title: 'Ngày Nhà Giáo Việt Nam 20/11!', msg: 'Chúc mừng ngày Nhà giáo Việt Nam! Tri ân những người thầy, người cô! 📚' },
+  { month: 12, day: 25, emoji: '🎄', title: 'Giáng Sinh An Lành!', msg: 'Chúc Giáng Sinh vui vẻ và hạnh phúc bên gia đình và người thân yêu! 🎅' },
+];
+
+function checkGreetings(profile) {
+  const now = new Date();
+  const todayM = now.getMonth() + 1;
+  const todayD = now.getDate();
+
+  // Check birthday first (highest priority)
+  if (profile.birthday) {
+    const [, bMonth, bDay] = profile.birthday.split('-').map(Number);
+    if (bMonth === todayM && bDay === todayD) {
+      showGreeting(
+        '🎂',
+        `Sinh Nhật Vui Vẻ, ${profile.name}!`,
+        `Chúc bạn một ngày sinh nhật thật đặc biệt, tràn đầy niềm vui và hạnh phúc! Tuổi mới thật nhiều sức khỏe, thành công và may mắn nhé! 🎁🎉`,
+        true
+      );
+      return;
+    }
+  }
+
+  // Check holidays
+  const holiday = HOLIDAYS.find(h => h.month === todayM && h.day === todayD);
+  if (holiday) {
+    showGreeting(holiday.emoji, holiday.title, holiday.msg, false);
+  }
+}
+
+function showGreeting(emoji, title, msg, isBirthday) {
+  document.getElementById('greeting-emoji').textContent = emoji;
+  document.getElementById('greeting-title').textContent = title;
+  document.getElementById('greeting-msg').textContent = msg;
+
+  // Confetti for birthdays and special days
+  const wrap = document.getElementById('confetti-wrap');
+  wrap.innerHTML = '';
+  if (isBirthday) {
+    const colors = ['#4F6BF0','#FF9800','#E91E63','#00B37E','#FFD700','#9C27B0'];
+    for (let i = 0; i < 20; i++) {
+      const dot = document.createElement('div');
+      dot.className = 'confetti-dot';
+      dot.style.cssText = `
+        left: ${Math.random() * 100}%;
+        background: ${colors[Math.floor(Math.random() * colors.length)]};
+        animation-duration: ${1.5 + Math.random() * 2}s;
+        animation-delay: ${Math.random() * 2}s;
+        width: ${6 + Math.random() * 6}px;
+        height: ${6 + Math.random() * 6}px;
+        border-radius: ${Math.random() > 0.5 ? '50%' : '2px'};
+      `;
+      wrap.appendChild(dot);
+    }
+  }
+
+  document.getElementById('greeting-popup').classList.add('show');
+}
+
+function closeGreeting() {
+  document.getElementById('greeting-popup').classList.remove('show');
+}
