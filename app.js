@@ -943,20 +943,23 @@ function openNotifySettings() {
   `).join('') || '<div class="empty-state" style="padding:30px 0"><div class="empty-icon">🔔</div><p>Không có thông báo</p></div>';
 }
 function openCurrencySettings() {
-  const grid = document.getElementById('currency-grid');
-  grid.innerHTML = CURRENCIES.map(c => `
-    <button onclick="selectCurrency('${c.symbol}','${c.code}','${c.label}')" style="
-      padding:14px 10px; border-radius:14px;
-      border:2px solid ${data.settings.currency === c.symbol ? '#4F6BF0' : 'rgba(255,255,255,0.1)'};
-      background:${data.settings.currency === c.symbol ? 'rgba(79,107,240,0.15)' : 'rgba(255,255,255,0.04)'};
-      color:#fff; cursor:pointer; text-align:center; font-family:'Inter',sans-serif;
-      transition:all 0.2s; font-size:13px;
-    ">
-      <div style="font-size:22px">${c.flag}</div>
-      <div style="font-size:18px;font-weight:700;margin:4px 0">${c.symbol}</div>
-      <div style="font-size:11px;opacity:0.6;line-height:1.3">${c.code}</div>
-    </button>
-  `).join('');
+  var grid = document.getElementById('currency-grid');
+  if (!grid) return;
+  var isDark = document.body.classList.contains('dark');
+  var html = '';
+  for (var i = 0; i < CURRENCIES.length; i++) {
+    var c = CURRENCIES[i];
+    var sel = data.settings.currency === c.symbol;
+    var bg     = sel ? '#4F6BF0' : (isDark ? '#252836' : '#eef0ff');
+    var border = sel ? '#4F6BF0' : (isDark ? '#3a3d50' : '#c8cef5');
+    var clr    = sel ? '#ffffff' : (isDark ? '#e8e9f0' : '#1A1A2E');
+    html += '<button onclick="selectCurrency(\'' + c.symbol + '\',\'' + c.code + '\',\'' + c.label.replace(/'/g,"&#39;") + '\')" style="padding:14px 10px;border-radius:14px;border:2px solid ' + border + ';background:' + bg + ';color:' + clr + ';cursor:pointer;text-align:center;font-family:Inter,sans-serif;font-size:13px;box-shadow:0 2px 8px rgba(0,0,0,0.1)">';
+    html += '<div style="font-size:22px">' + c.flag + '</div>';
+    html += '<div style="font-size:16px;font-weight:700;margin:4px 0">' + c.symbol + '</div>';
+    html += '<div style="font-size:11px;opacity:0.7">' + c.code + '</div>';
+    html += '</button>';
+  }
+  grid.innerHTML = html;
   openModal('modal-currency');
 }
 
