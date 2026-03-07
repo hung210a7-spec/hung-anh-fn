@@ -942,6 +942,34 @@ function openNotifySettings() {
     </div>
   `).join('') || '<div class="empty-state" style="padding:30px 0"><div class="empty-icon">🔔</div><p>Không có thông báo</p></div>';
 }
+function openCurrencySettings() {
+  const grid = document.getElementById('currency-grid');
+  grid.innerHTML = CURRENCIES.map(c => `
+    <button onclick="selectCurrency('${c.symbol}','${c.code}','${c.label}')" style="
+      padding:14px 10px; border-radius:14px;
+      border:2px solid ${data.settings.currency === c.symbol ? '#4F6BF0' : 'rgba(255,255,255,0.1)'};
+      background:${data.settings.currency === c.symbol ? 'rgba(79,107,240,0.15)' : 'rgba(255,255,255,0.04)'};
+      color:#fff; cursor:pointer; text-align:center; font-family:'Inter',sans-serif;
+      transition:all 0.2s; font-size:13px;
+    ">
+      <div style="font-size:22px">${c.flag}</div>
+      <div style="font-size:18px;font-weight:700;margin:4px 0">${c.symbol}</div>
+      <div style="font-size:11px;opacity:0.6;line-height:1.3">${c.code}</div>
+    </button>
+  `).join('');
+  openModal('modal-currency');
+}
+
+function selectCurrency(symbol, code, label) {
+  data.settings.currency = symbol;
+  saveData();
+  document.getElementById('currency-display').textContent = `${label} (${symbol})`;
+  openCurrencySettings(); // re-render grid to highlight selected
+  renderDashboard();
+  renderWallets();
+  renderBudgets();
+  showToast(`Đã chọn tiền tệ: ${symbol} ${code} ✅`);
+}
 
 
 
