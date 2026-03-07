@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <title>Hung Anh Finance</title>
+  <meta name="description" content="Ứng dụng quản lí tài chính cá nhân Hung Anh Finance - theo dõi thu chi, ngân sách và ví tiền" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app-shell">
+
+    <!-- ==================== PAGES ==================== -->
+
+    <!-- DASHBOARD PAGE -->
+    <div class="page active" id="page-home">
+      <header class="top-bar">
+        <div class="top-bar-left">
+          <img class="avatar" src="https://ui-avatars.com/api/?name=Hung+Anh&background=4F6BF0&color=fff&size=80" alt="Avatar" />
+          <div>
+            <span class="top-label">DASHBOARD</span>
+            <h2 class="greeting">Xin chào, Hùng Anh!</h2>
+          </div>
+        </div>
+        <div class="top-bar-right">
+          <button class="icon-btn" id="btn-notify" title="Thông báo">
+            <svg viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4a2 2 0 0 0 2 2zm6-6V11c0-3.07-1.64-5.64-4.5-6.32V4a1.5 1.5 0 0 0-3 0v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+            <span class="badge" id="notify-badge">3</span>
+          </button>
+          <button class="icon-btn" id="btn-search" title="Tìm kiếm">
+            <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+          </button>
+        </div>
+      </header>
+
+      <div class="scroll-content">
+        <!-- Total Balance -->
+        <div class="card balance-card">
+          <div class="balance-header">
+            <span class="card-label">Tổng số dư</span>
+            <div class="wallet-icon">
+              <svg viewBox="0 0 24 24"><path d="M21 18v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v1h-9a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h9zm-9-2h10V8H12v8zm4-2.5a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"/></svg>
+            </div>
+          </div>
+          <div class="balance-amount" id="total-balance">₫0</div>
+          <div class="balance-change positive" id="balance-change">
+            <svg viewBox="0 0 24 24" class="trend-icon"><path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6h-6z"/></svg>
+            <span id="balance-change-text">+2.5% so với tháng trước</span>
+          </div>
+        </div>
+
+        <!-- Income & Expense Summary -->
+        <div class="two-col">
+          <div class="card summary-card">
+            <span class="card-label">THU NHẬP</span>
+            <div class="summary-amount income" id="total-income">₫0</div>
+            <div class="summary-change income-change" id="income-change">
+              <svg viewBox="0 0 24 24"><path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6h-6z"/></svg>
+              <span id="income-change-text">+₫420K</span>
+            </div>
+          </div>
+          <div class="card summary-card">
+            <span class="card-label">CHI TIÊU</span>
+            <div class="summary-amount expense" id="total-expense">₫0</div>
+            <div class="summary-change expense-change" id="expense-change">
+              <svg viewBox="0 0 24 24"><path d="M16 18l2.29-2.29-4.88-4.88-4 4L2 7.41 3.41 6l6 6 4-4 6.3 6.29L22 12v6h-6z"/></svg>
+              <span id="expense-change-text">-₫120K</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Spending Trend Chart -->
+        <div class="card chart-card">
+          <div class="chart-header">
+            <div>
+              <div class="chart-title">Xu hướng chi tiêu</div>
+              <div class="chart-amount" id="chart-total">₫0 <span class="chart-pct">-5.4%</span></div>
+            </div>
+            <div class="period-select-wrap">
+              <select class="period-select" id="chart-period">
+                <option value="6">6 Tháng qua</option>
+                <option value="3">3 Tháng qua</option>
+                <option value="12">12 Tháng qua</option>
+              </select>
+            </div>
+          </div>
+          <div class="chart-container">
+            <canvas id="spending-chart" height="160"></canvas>
+          </div>
+          <div class="chart-labels" id="chart-labels"></div>
+        </div>
+
+        <!-- Recent Transactions -->
+        <div class="section-header">
+          <span class="section-title">Giao dịch gần đây</span>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button class="btn-edit-mode" onclick="toggleDeleteMode()">Xóa</button>
+            <button class="see-all" onclick="switchPage('page-transactions')">Xem tất cả</button>
+          </div>
+        </div>
+        <div class="transactions-list" id="recent-tx-list">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+    </div>
+
+    <!-- WALLETS PAGE -->
+    <div class="page" id="page-wallets">
+      <header class="top-bar plain">
+        <h2 class="page-title">Ví tiền</h2>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="btn-edit-mode" id="btn-wallet-delete-mode" onclick="toggleWalletDeleteMode()">Xóa</button>
+          <button class="icon-btn" id="btn-add-wallet">
+            <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+          </button>
+        </div>
+      </header>
+      <div class="scroll-content">
+        <div class="wallets-list" id="wallets-list"><!-- JS --></div>
+        <div class="section-header" style="margin-top:1.2rem">
+          <span class="section-title">Phân bổ tài sản</span>
+        </div>
+        <div class="card" style="padding:1.2rem">
+          <canvas id="wallet-pie-chart" height="200"></canvas>
+          <div id="wallet-legend" class="pie-legend"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TRANSACTIONS PAGE -->
+    <div class="page" id="page-transactions">
+      <header class="top-bar plain">
+        <button class="icon-btn back-btn" onclick="switchPage('page-home')">
+          <svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+        </button>
+        <h2 class="page-title">Tất cả giao dịch</h2>
+        <button class="btn-edit-mode" onclick="toggleDeleteMode()">Xóa</button>
+      </header>
+      <div class="filter-tabs" id="tx-filter-tabs">
+        <button class="filter-tab active" data-filter="all">Tất cả</button>
+        <button class="filter-tab" data-filter="income">Thu nhập</button>
+        <button class="filter-tab" data-filter="expense">Chi tiêu</button>
+      </div>
+      <div class="scroll-content">
+        <div class="transactions-list" id="all-tx-list"><!-- JS --></div>
+      </div>
+    </div>
+
+    <!-- BUDGETS PAGE -->
+    <div class="page" id="page-budgets">
+      <header class="top-bar plain">
+        <h2 class="page-title">Ngân sách</h2>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="btn-edit-mode" id="btn-budget-delete-mode" onclick="toggleBudgetDeleteMode()">Xóa</button>
+          <button class="icon-btn" id="btn-add-budget">
+            <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+          </button>
+        </div>
+      </header>
+      <div class="scroll-content">
+        <div class="card budget-overview-card">
+          <div class="card-label">Tổng ngân sách tháng</div>
+          <div class="budget-total" id="budget-total-display">₫0</div>
+          <div class="budget-bar-wrap">
+            <div class="budget-bar">
+              <div class="budget-bar-fill" id="budget-bar-fill" style="width:0%"></div>
+            </div>
+            <span class="budget-pct-text" id="budget-pct-text">0% đã dùng</span>
+          </div>
+        </div>
+        <div class="budgets-list" id="budgets-list"><!-- JS --></div>
+      </div>
+    </div>
+
+    <!-- SETTINGS PAGE -->
+    <div class="page" id="page-settings">
+      <header class="top-bar plain">
+        <h2 class="page-title">Cài đặt</h2>
+      </header>
+      <div class="scroll-content">
+        <div class="settings-profile card">
+          <img class="settings-avatar" src="https://ui-avatars.com/api/?name=Hung+Anh&background=4F6BF0&color=fff&size=120" alt="Avatar" />
+          <div class="settings-name">Hùng Anh</div>
+          <div class="settings-email">hunganh@finance.vn</div>
+          <button class="btn-edit-profile" onclick="openEditProfile()">Chỉnh sửa hồ sơ</button>
+        </div>
+
+        <div class="settings-section">
+          <div class="settings-item" onclick="openCurrencySettings()">
+            <div class="si-icon" style="background:#EEF0FF"><svg viewBox="0 0 24 24" fill="#4F6BF0"><path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/></svg></div>
+            <div class="si-text">
+              <div class="si-title">Đơn vị tiền tệ</div>
+              <div class="si-sub" id="currency-display">Việt Nam Đồng (₫)</div>
+            </div>
+            <svg class="si-arrow" viewBox="0 0 24 24"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6-6-6z"/></svg>
+          </div>
+          <div class="settings-item" onclick="openNotifySettings()">
+            <div class="si-icon" style="background:#FFF3E0"><svg viewBox="0 0 24 24" fill="#FF9800"><path d="M12 22c1.1 0 2-.9 2-2h-4a2 2 0 0 0 2 2zm6-6V11c0-3.07-1.64-5.64-4.5-6.32V4a1.5 1.5 0 0 0-3 0v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg></div>
+            <div class="si-text">
+              <div class="si-title">Thông báo</div>
+              <div class="si-sub">Bật thông báo chi tiêu</div>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="toggle-notify" checked />
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="settings-item" onclick="toggleDarkMode()">
+            <div class="si-icon" style="background:#F3E5F5"><svg viewBox="0 0 24 24" fill="#9C27B0"><path d="M12 3a9 9 0 1 0 9 9c0-.46-.04-.92-.1-1.36a5.389 5.389 0 0 1-4.4 2.26 5.403 5.403 0 0 1-3.14-9.8c-.44-.06-.9-.1-1.36-.1z"/></svg></div>
+            <div class="si-text">
+              <div class="si-title">Giao diện tối</div>
+              <div class="si-sub">Chế độ Dark Mode</div>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="toggle-dark" />
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="settings-item" onclick="clearData()">
+            <div class="si-icon" style="background:#FFEBEE"><svg viewBox="0 0 24 24" fill="#F44336"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></div>
+            <div class="si-text">
+              <div class="si-title">Xóa dữ liệu</div>
+              <div class="si-sub">Xóa toàn bộ giao dịch</div>
+            </div>
+            <svg class="si-arrow" viewBox="0 0 24 24"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6-6-6z"/></svg>
+          </div>
+        </div>
+
+        <div class="app-version">Hung Anh Finance v1.0.0</div>
+      </div>
+    </div>
+
+    <!-- BOTTOM NAV -->
+    <nav class="bottom-nav">
+      <button class="nav-btn active" data-page="page-home" onclick="switchPage('page-home')">
+        <svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+        <span>Trang chủ</span>
+      </button>
+      <button class="nav-btn" data-page="page-wallets" onclick="switchPage('page-wallets')">
+        <svg viewBox="0 0 24 24"><path d="M21 18v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v1h-9a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h9zm-9-2h10V8H12v8zm4-2.5a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"/></svg>
+        <span>Ví tiền</span>
+      </button>
+      <button class="nav-btn fab-btn" id="fab" onclick="openAddModal()">
+        <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+      </button>
+      <button class="nav-btn" data-page="page-budgets" onclick="switchPage('page-budgets')">
+        <svg viewBox="0 0 24 24"><path d="M11 2v20c-5.07-.5-9-4.79-9-10s3.93-9.5 9-10zm2.03 0v8.99H22c-.47-4.74-4.24-8.52-8.97-8.99zm0 11.01V22c4.74-.47 8.5-4.25 8.97-8.99h-8.97z"/></svg>
+        <span>Ngân sách</span>
+      </button>
+      <button class="nav-btn" data-page="page-settings" onclick="switchPage('page-settings')">
+        <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+        <span>Cài đặt</span>
+      </button>
+    </nav>
+
+    <!-- ==================== MODALS ==================== -->
+
+    <!-- Add Transaction Modal -->
+    <div class="modal-overlay" id="modal-add" onclick="closeModal('modal-add')">
+      <div class="modal-sheet" onclick="event.stopPropagation()">
+        <div class="modal-handle"></div>
+        <h3 class="modal-title">Thêm giao dịch</h3>
+        <div class="type-switcher">
+          <button class="type-btn active" id="type-expense" onclick="setTxType('expense')">Chi tiêu</button>
+          <button class="type-btn" id="type-income" onclick="setTxType('income')">Thu nhập</button>
+          <button class="type-btn" id="type-transfer" onclick="setTxType('transfer')">Chuyển khoản</button>
+        </div>
+        <div class="form-group">
+          <label>Số tiền</label>
+          <div class="amount-input-wrap">
+            <span class="currency-sym">₫</span>
+            <input type="number" id="tx-amount" placeholder="0" min="0" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Danh mục</label>
+          <div class="category-grid" id="category-grid"><!-- JS --></div>
+        </div>
+        <div class="form-group">
+          <label>Ghi chú</label>
+          <input type="text" id="tx-note" placeholder="Thêm ghi chú..." />
+        </div>
+        <div class="form-group">
+          <label>Ví tiền</label>
+          <select id="tx-wallet"><!-- JS --></select>
+        </div>
+        <div class="form-group">
+          <label>Ngày</label>
+          <input type="date" id="tx-date" />
+        </div>
+        <button class="btn-primary" onclick="saveTransaction()">Lưu giao dịch</button>
+      </div>
+    </div>
+
+    <!-- Add Wallet Modal -->
+    <div class="modal-overlay" id="modal-wallet" onclick="closeModal('modal-wallet')">
+      <div class="modal-sheet" onclick="event.stopPropagation()">
+        <div class="modal-handle"></div>
+        <h3 class="modal-title">Thêm ví tiền</h3>
+        <div class="form-group">
+          <label>Tên ví</label>
+          <input type="text" id="wallet-name" placeholder="VD: Ví tiền mặt" />
+        </div>
+        <div class="form-group">
+          <label>Số dư ban đầu (₫)</label>
+          <input type="number" id="wallet-balance" placeholder="0" min="0" />
+        </div>
+        <div class="form-group">
+          <label>Màu ví</label>
+          <div class="color-grid" id="wallet-color-grid"><!-- JS --></div>
+        </div>
+        <button class="btn-primary" onclick="saveWallet()">Tạo ví</button>
+      </div>
+    </div>
+
+    <!-- Add Budget Modal -->
+    <div class="modal-overlay" id="modal-budget" onclick="closeModal('modal-budget')">
+      <div class="modal-sheet" onclick="event.stopPropagation()">
+        <div class="modal-handle"></div>
+        <h3 class="modal-title">Thêm ngân sách</h3>
+        <div class="form-group">
+          <label>Danh mục</label>
+          <select id="budget-category"><!-- JS --></select>
+        </div>
+        <div class="form-group">
+          <label>Giới hạn ngân sách (₫)</label>
+          <input type="number" id="budget-limit" placeholder="0" min="0" />
+        </div>
+        <button class="btn-primary" onclick="saveBudget()">Lưu ngân sách</button>
+      </div>
+    </div>
+
+    <!-- Edit Profile Modal -->
+    <div class="modal-overlay" id="modal-profile" onclick="closeModal('modal-profile')">
+      <div class="modal-sheet" onclick="event.stopPropagation()">
+        <div class="modal-handle"></div>
+        <h3 class="modal-title">Chỉnh sửa hồ sơ</h3>
+        <div class="form-group">
+          <label>Tên hiển thị</label>
+          <input type="text" id="profile-name" value="Hùng Anh" />
+        </div>
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" id="profile-email" value="hunganh@finance.vn" />
+        </div>
+        <button class="btn-primary" onclick="saveProfile()">Lưu</button>
+      </div>
+    </div>
+
+    <!-- Notification Panel -->
+    <div class="modal-overlay" id="modal-notify" onclick="closeModal('modal-notify')">
+      <div class="modal-sheet notify-sheet" onclick="event.stopPropagation()">
+        <div class="modal-handle"></div>
+        <h3 class="modal-title">Thông báo</h3>
+        <div id="notify-list"></div>
+      </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast"></div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
