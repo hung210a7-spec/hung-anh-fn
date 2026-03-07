@@ -1111,6 +1111,246 @@ function showGreeting(emoji, title, msg, isBirthday) {
   document.getElementById('greeting-popup').classList.add('show');
 }
 
+
 function closeGreeting() {
   document.getElementById('greeting-popup').classList.remove('show');
+}
+
+// ==================== MARKET DATA ====================
+var _marketLoaded = false;
+
+var COMMODITIES = [
+  // Thực phẩm
+  { name: 'Gạo ST25 (5kg)', cat: 'Thực phẩm', emoji: '🍚', min: 120000, max: 160000 },
+  { name: 'Dầu ăn Neptune (2L)', cat: 'Thực phẩm', emoji: '🫙', min: 78000, max: 98000 },
+  { name: 'Thịt heo (1kg)', cat: 'Thực phẩm', emoji: '🥩', min: 120000, max: 180000 },
+  { name: 'Thịt gà (1kg)', cat: 'Thực phẩm', emoji: '🐔', min: 70000, max: 110000 },
+  { name: 'Trứng gà (10 quả)', cat: 'Thực phẩm', emoji: '🥚', min: 28000, max: 38000 },
+  { name: 'Sữa TH True Milk (1L)', cat: 'Thực phẩm', emoji: '🥛', min: 32000, max: 45000 },
+  { name: 'Mì Hảo Hảo (30 gói)', cat: 'Thực phẩm', emoji: '🍜', min: 85000, max: 110000 },
+  { name: 'Nước mắm Phú Quốc (500ml)', cat: 'Thực phẩm', emoji: '🍶', min: 35000, max: 65000 },
+  { name: 'Cà phê G7 (50 gói)', cat: 'Thực phẩm', emoji: '☕', min: 65000, max: 90000 },
+  { name: 'Đường Biên Hòa (1kg)', cat: 'Thực phẩm', emoji: '🧂', min: 22000, max: 30000 },
+  // Điện tử
+  { name: 'iPhone 15 Pro Max', cat: 'Điện tử', emoji: '📱', min: 29990000, max: 34990000 },
+  { name: 'Samsung Galaxy S24', cat: 'Điện tử', emoji: '📱', min: 19990000, max: 24990000 },
+  { name: 'Laptop Dell Inspiron 15', cat: 'Điện tử', emoji: '💻', min: 14990000, max: 18990000 },
+  { name: 'Laptop MacBook Air M2', cat: 'Điện tử', emoji: '💻', min: 27990000, max: 32990000 },
+  { name: 'Tai nghe AirPods Pro 2', cat: 'Điện tử', emoji: '🎧', min: 5290000, max: 6990000 },
+  { name: 'Màn hình 27" LG 4K', cat: 'Điện tử', emoji: '🖥️', min: 8990000, max: 14990000 },
+  { name: 'Ổ cứng SSD 1TB Samsung', cat: 'Điện tử', emoji: '💾', min: 1590000, max: 2490000 },
+  { name: 'Máy ảnh Sony A7III', cat: 'Điện tử', emoji: '📷', min: 38000000, max: 45000000 },
+  { name: 'Xbox Series X', cat: 'Điện tử', emoji: '🎮', min: 12990000, max: 15990000 },
+  { name: 'Bàn phím cơ Keychron K2', cat: 'Điện tử', emoji: '⌨️', min: 1890000, max: 2990000 },
+  // Thời trang
+  { name: 'Áo thun Nike basic', cat: 'Thời trang', emoji: '👕', min: 350000, max: 650000 },
+  { name: 'Giày Adidas Ultra Boost', cat: 'Thời trang', emoji: '👟', min: 2800000, max: 4500000 },
+  { name: 'Quần jeans Levi\'s 501', cat: 'Thời trang', emoji: '👖', min: 1200000, max: 2200000 },
+  { name: 'Áo khoác Uniqlo Fleece', cat: 'Thời trang', emoji: '🧥', min: 590000, max: 990000 },
+  { name: 'Túi xách nữ', cat: 'Thời trang', emoji: '👜', min: 300000, max: 2500000 },
+  { name: 'Đồng hồ Casio G-Shock', cat: 'Thời trang', emoji: '⌚', min: 2200000, max: 3500000 },
+  // Gia dụng
+  { name: 'Nồi cơm điện Cuckoo 1.8L', cat: 'Gia dụng', emoji: '🍳', min: 1800000, max: 3500000 },
+  { name: 'Máy lọc không khí Xiaomi', cat: 'Gia dụng', emoji: '💨', min: 1590000, max: 2990000 },
+  { name: 'Tủ lạnh Samsung 300L', cat: 'Gia dụng', emoji: '🧊', min: 8490000, max: 14990000 },
+  { name: 'Máy giặt LG 9kg', cat: 'Gia dụng', emoji: '🫧', min: 7990000, max: 13490000 },
+  { name: 'Điều hòa Daikin 1HP', cat: 'Gia dụng', emoji: '❄️', min: 8990000, max: 13990000 },
+  { name: 'Máy hút bụi Dyson V12', cat: 'Gia dụng', emoji: '🌀', min: 11990000, max: 15990000 },
+  // Mỹ phẩm
+  { name: 'Kem dưỡng da Cetaphil', cat: 'Mỹ phẩm', emoji: '🧴', min: 185000, max: 280000 },
+  { name: 'Serum vitamin C Skinceuticals', cat: 'Mỹ phẩm', emoji: '🌟', min: 3200000, max: 4500000 },
+  { name: 'Kem chống nắng Anessa SPF50', cat: 'Mỹ phẩm', emoji: '☀️', min: 320000, max: 480000 },
+  { name: 'Son môi MAC', cat: 'Mỹ phẩm', emoji: '💄', min: 650000, max: 890000 },
+  { name: 'Sữa rửa mặt CeraVe', cat: 'Mỹ phẩm', emoji: '🫧', min: 180000, max: 290000 },
+  // Sức khoẻ
+  { name: 'Protein Whey Optimum 2.27kg', cat: 'Sức khoẻ', emoji: '💪', min: 1290000, max: 1890000 },
+  { name: 'Vitamin C 1000mg (100 viên)', cat: 'Sức khoẻ', emoji: '💊', min: 120000, max: 280000 },
+  { name: 'Dầu cá Omega-3 (180 viên)', cat: 'Sức khoẻ', emoji: '🐟', min: 280000, max: 490000 },
+  { name: 'Máy đo huyết áp Omron', cat: 'Sức khoẻ', emoji: '🩺', min: 890000, max: 1490000 },
+  // Thể thao
+  { name: 'Xe đạp thể thao Giant', cat: 'Thể thao', emoji: '🚴', min: 4990000, max: 12000000 },
+  { name: 'Bóng đá Nike Premier League', cat: 'Thể thao', emoji: '⚽', min: 650000, max: 1200000 },
+  { name: 'Thảm yoga Lululemon', cat: 'Thể thao', emoji: '🧘', min: 1200000, max: 2500000 },
+  { name: 'Tạ đôi 2x10kg', cat: 'Thể thao', emoji: '🏋️', min: 280000, max: 590000 },
+  { name: 'Vợt cầu lông Yonex', cat: 'Thể thao', emoji: '🏸', min: 890000, max: 3500000 },
+];
+
+var CAR_PRICES = [
+  { name: 'Toyota Vios 1.5G', type: 'Sedan', emoji: '🏎️', min: 568000000, max: 630000000 },
+  { name: 'Toyota Camry 2.5Q', type: 'Sedan', emoji: '🚗', min: 1235000000, max: 1320000000 },
+  { name: 'Honda City RS', type: 'Sedan', emoji: '🚗', min: 599000000, max: 660000000 },
+  { name: 'Honda CR-V e:HEV', type: 'SUV', emoji: '🚙', min: 998000000, max: 1095000000 },
+  { name: 'Hyundai Accent 1.4 AT', type: 'Sedan', emoji: '🚗', min: 479000000, max: 519000000 },
+  { name: 'Kia Seltos 1.4T Premium', type: 'SUV', emoji: '🚙', min: 729000000, max: 799000000 },
+  { name: 'Mazda CX-5 2.0 Premium', type: 'SUV', emoji: '🚙', min: 849000000, max: 949000000 },
+  { name: 'Ford Ranger Wildtrak 2.0', type: 'Bán tải', emoji: '🛻', min: 879000000, max: 950000000 },
+  { name: 'Mitsubishi Xpander Cross', type: 'MPV', emoji: '🚐', min: 670000000, max: 750000000 },
+  { name: 'VinFast VF 8 Eco', type: 'SUV điện', emoji: '⚡', min: 888000000, max: 1090000000 },
+  { name: 'VinFast VF 9 Plus', type: 'SUV điện', emoji: '⚡', min: 1388000000, max: 1590000000 },
+  { name: 'Mercedes C200 AMG', type: 'Sedan', emoji: '🏎️', min: 1859000000, max: 2150000000 },
+  { name: 'BMW 320i M Sport', type: 'Sedan', emoji: '🏎️', min: 1679000000, max: 1900000000 },
+  { name: 'Audi Q5 40 TFSI', type: 'SUV', emoji: '🚙', min: 2090000000, max: 2350000000 },
+  { name: 'Suzuki XL7 1.5 AT', type: 'MPV', emoji: '🚐', min: 599000000, max: 650000000 },
+  { name: 'Toyota Fortuner 2.4G 4x2', type: 'SUV', emoji: '🚙', min: 1100000000, max: 1250000000 },
+  { name: 'Isuzu D-Max 1.9 Prestige', type: 'Bán tải', emoji: '🛻', min: 780000000, max: 880000000 },
+  { name: 'Volvo XC60 B5 AWD', type: 'SUV', emoji: '🚙', min: 2590000000, max: 2900000000 },
+];
+
+function fmt(n) {
+  return (data.settings.currency || '₫') + new Intl.NumberFormat('vi-VN').format(Math.round(n));
+}
+
+function loadMarketData() {
+  if (!document.getElementById('gold-card')) return;
+  loadGoldPrice();
+  if (!_marketLoaded) {
+    _marketLoaded = true;
+    renderCategories();
+    renderCars();
+    searchMarket('');
+  }
+}
+
+function loadGoldPrice() {
+  var card = document.getElementById('gold-card');
+  card.innerHTML = '<div style="text-align:center;color:var(--color-sub);padding:20px 0">🔄 Đang tải giá vàng...</div>';
+  var url = 'https://api.allorigins.win/get?url=' + encodeURIComponent('https://sjc.com.vn/GoldPrice/Index.aspx');
+  fetch(url, { cache: 'no-store' })
+    .then(function(r) { return r.json(); })
+    .then(function(json) {
+      var text = json.contents || '';
+      var rows = [];
+      var re = /SJC[\s\S]*?(\d[\d,.]+)[\s\S]*?(\d[\d,.]+)/i;
+      // Try to extract price pairs from HTML
+      var matched = text.match(/(\d{1,3}(?:\.\d{3})+)\s*[|\-]\s*(\d{1,3}(?:\.\d{3})+)/g);
+      if (matched && matched.length >= 1) {
+        var prices = matched.slice(0, 4);
+        rows = [
+          { label: 'SJC 1 lượng', buy: prices[0] ? prices[0].split(/[|\-]/)[0].trim() : '—', sell: prices[0] ? prices[0].split(/[|\-]/)[1] ? prices[0].split(/[|\-]/)[1].trim() : '—' : '—' },
+        ];
+      }
+      renderGoldCard(rows.length ? rows : null);
+    })
+    .catch(function() { renderGoldCard(null); });
+}
+
+function renderGoldCard(rows) {
+  var card = document.getElementById('gold-card');
+  var now = new Date().toLocaleTimeString('vi-VN');
+  // Fallback gold prices (representative, updated periodically)
+  var gold = [
+    { label: 'SJC 1 lượng', buy: '120.500', sell: '122.500' },
+    { label: 'SJC 5 chỉ', buy: '60.500', sell: '61.500' },
+    { label: 'Nhẫn SJC 1 chỉ', buy: '11.800', sell: '12.100' },
+    { label: 'PNJ 24K (1 chỉ)', buy: '11.750', sell: '12.050' },
+  ];
+  if (rows && rows.length) gold[0] = rows[0];
+  var html = '<div style="display:grid;grid-template-columns:1fr;gap:8px">';
+  gold.forEach(function(g) {
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:var(--bg-main);border-radius:12px">'
+      + '<div><div style="font-size:13px;font-weight:600">' + g.label + '</div>'
+      + '<div style="font-size:10px;color:var(--color-sub)">nghìn đồng/đơn vị</div></div>'
+      + '<div style="text-align:right">'
+      + '<div style="font-size:11px;color:var(--color-income)">Mua: <b>' + g.buy + '</b></div>'
+      + '<div style="font-size:11px;color:var(--color-expense)">Bán: <b>' + g.sell + '</b></div>'
+      + '</div></div>';
+  });
+  html += '</div>';
+  html += '<div style="text-align:right;font-size:10px;color:var(--color-sub);margin-top:8px">⏰ Cập nhật: ' + now;
+  html += ' · <a href="https://www.pnj.com.vn" target="_blank" style="color:var(--color-primary)">Xem PNJ</a></div>';
+  card.innerHTML = html;
+}
+
+var _currentCat = 'Tất cả';
+
+function renderCategories() {
+  var cats = ['Tất cả'];
+  COMMODITIES.forEach(function(c) { if (cats.indexOf(c.cat) < 0) cats.push(c.cat); });
+  var catIcons = { 'Tất cả':'🏷️','Thực phẩm':'🍚','Điện tử':'📱','Thời trang':'👗','Gia dụng':'🏠','Mỹ phẩm':'💄','Sức khoẻ':'💊','Thể thao':'⚽' };
+  var wrap = document.getElementById('market-cats');
+  wrap.innerHTML = cats.map(function(c) {
+    var active = c === _currentCat;
+    return '<button onclick="filterCat(\'' + c + '\')" style="flex-shrink:0;padding:7px 14px;border-radius:20px;border:none;background:' + (active ? 'var(--color-primary)' : 'var(--bg-card)') + ';color:' + (active ? '#fff' : 'var(--color-text)') + ';font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font);white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,0.07)">' + (catIcons[c]||'📦') + ' ' + c + '</button>';
+  }).join('');
+}
+
+function filterCat(cat) {
+  _currentCat = cat;
+  renderCategories();
+  searchMarket(document.getElementById('market-search') ? document.getElementById('market-search').value : '');
+}
+
+function searchMarket(q) {
+  var results = document.getElementById('market-results');
+  var linkWrap = document.getElementById('shopee-link-wrap');
+  var link = document.getElementById('shopee-link');
+  if (!results) return;
+  q = q.trim().toLowerCase();
+  var filtered = COMMODITIES.filter(function(c) {
+    var catMatch = _currentCat === 'Tất cả' || c.cat === _currentCat;
+    var qMatch = !q || c.name.toLowerCase().indexOf(q) >= 0 || c.cat.toLowerCase().indexOf(q) >= 0;
+    return catMatch && qMatch;
+  });
+  if (filtered.length === 0) {
+    results.innerHTML = '<div style="text-align:center;padding:30px 0;color:var(--color-sub)">🔍 Không tìm thấy mặt hàng phù hợp</div>';
+    if (linkWrap) { linkWrap.style.display = 'block'; link.href = 'https://shopee.vn/search?keyword=' + encodeURIComponent(q); link.textContent = '🛍️ Tìm "' + q + '" trên Shopee'; }
+    return;
+  }
+  var html = '<div style="display:flex;flex-direction:column;gap:10px;margin-bottom:12px">';
+  filtered.slice(0, 20).forEach(function(c) {
+    html += '<div style="background:var(--bg-card);border-radius:14px;padding:13px 16px;display:flex;align-items:center;gap:12px;box-shadow:0 2px 8px rgba(0,0,0,0.05)">'
+      + '<div style="font-size:28px;flex-shrink:0">' + c.emoji + '</div>'
+      + '<div style="flex:1;min-width:0">'
+      + '<div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + c.name + '</div>'
+      + '<div style="font-size:11px;color:var(--color-sub);margin-top:2px">' + c.cat + '</div>'
+      + '</div>'
+      + '<div style="text-align:right;flex-shrink:0">'
+      + '<div style="font-size:13px;font-weight:700;color:var(--color-primary)">' + fmt(c.min) + '</div>'
+      + '<div style="font-size:10px;color:var(--color-sub)">~ ' + fmt(c.max) + '</div>'
+      + '</div>'
+      + '<a href="https://shopee.vn/search?keyword=' + encodeURIComponent(c.name) + '" target="_blank" style="font-size:18px;text-decoration:none" title="Xem trên Shopee">🛒</a>'
+      + '</div>';
+  });
+  html += '</div>';
+  results.innerHTML = html;
+  if (linkWrap) {
+    if (q && filtered.length > 0) {
+      linkWrap.style.display = 'block';
+      link.href = 'https://shopee.vn/search?keyword=' + encodeURIComponent(q);
+      link.textContent = '🛍️ Xem thêm "' + (q || _currentCat) + '" trên Shopee';
+    } else {
+      linkWrap.style.display = 'none';
+    }
+  }
+}
+
+function renderCars() {
+  var list = document.getElementById('car-list');
+  if (!list) return;
+  var types = {};
+  CAR_PRICES.forEach(function(c) {
+    if (!types[c.type]) types[c.type] = [];
+    types[c.type].push(c);
+  });
+  var html = '';
+  Object.keys(types).forEach(function(type) {
+    html += '<div style="font-size:12px;font-weight:700;color:var(--color-sub);letter-spacing:0.5px;text-transform:uppercase;margin:12px 0 6px">' + type + '</div>';
+    html += '<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:6px">';
+    types[type].forEach(function(car) {
+      html += '<div style="background:var(--bg-card);border-radius:14px;padding:13px 16px;display:flex;align-items:center;gap:12px;box-shadow:0 2px 8px rgba(0,0,0,0.05)">'
+        + '<div style="font-size:26px">' + car.emoji + '</div>'
+        + '<div style="flex:1">'
+        + '<div style="font-size:13px;font-weight:600">' + car.name + '</div>'
+        + '<div style="font-size:11px;color:var(--color-sub);margin-top:2px">' + car.type + '</div>'
+        + '</div>'
+        + '<div style="text-align:right">'
+        + '<div style="font-size:12px;font-weight:700;color:var(--color-primary)">' + fmt(car.min) + '</div>'
+        + '<div style="font-size:10px;color:var(--color-sub)">~ ' + fmt(car.max) + '</div>'
+        + '</div>'
+        + '<a href="https://dailyxe.com.vn/?s=' + encodeURIComponent(car.name) + '" target="_blank" style="font-size:18px;text-decoration:none" title="Xem trên dailyxe">🔗</a>'
+        + '</div>';
+    });
+    html += '</div>';
+  });
+  list.innerHTML = html;
 }
