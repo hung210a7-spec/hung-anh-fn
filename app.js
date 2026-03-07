@@ -11,8 +11,123 @@ const firebaseConfig = {
 
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
+const auth = firebase.auth();
 const analytics = firebase.analytics();
-const DOC_ID = 'main'; // single-doc strategy
+
+let currentUser = null; // logged-in Firebase user
+
+// ==================== AUTH FUNCTIONS ====================
+function switchAuthTab(tab) {
+  document.getElementById('tab-login').classList.toggle('active', tab === 'login');
+  document.getElementById('tab-register').classList.toggle('active', tab === 'register');
+  document.getElementById('form-login').classList.toggle('active', tab === 'login');
+  document.getElementById('form-register').classList.toggle('active', tab === 'register');
+  // clear errors
+  hideAuthError('login-error');
+  hideAuthError('reg-error');
+  document.getElementById('reg-success').classList.remove('show');
+}
+
+function showAuthError(id, msg) {
+  const el = document.getElementById(id);
+  el.textContent = msg;
+  el.classList.add('show');
+}
+
+function hideAuthError(id) {
+  document.getElementById(id).classList.remove('show');
+}
+
+function setAuthLoading(btnId, loading) {
+  const btn = document.getElementById(btnId);
+  btn.disabled = loading;
+  if (btnId === 'btn-login') btn.textContent = loading ? 'Đang đăng nhập...' : 'Đăng nhập';
+  if (btnId === 'btn-register') btn.textContent = loading ? 'Đang tạo tài khoản...' : 'Tạo tài khoản';
+}
+
+function loginUser() {
+  const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+  hideAuthError('login-error');
+
+  if (!email) { showAuthError('login-error', '⚠️ Vui lòng nhập email'); return; }
+  if (!password) { showAuthError('login-error', '⚠️ Vui lòng nhập mật khẩu'); return; }
+
+  setAuthLoading('btn-login', true);
+  auth.signInWithEmailAndPassword(email, password)
+    .then(() => {
+      // onAuthStateChanged will handle the rest
+    })
+    .catch(err => {
+      setAuthLoading('btn-login', false);
+      let msg = '❌ Đăng nhập thất bại. Vui lòng thử lại.';
+      if (err.code === 'auth/user-not-found') msg = '❌ Tài khoản không tồn tại. Hãy đăng ký trước!';
+      else if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') msg = '❌ Mật khẩu không đúng. Vui lòng thử lại!';
+      else if (err.code === 'auth/invalid-email') msg = '❌ Email không hợp lệ.';
+      else if (err.code === 'auth/too-many-requests') msg = '⏳ Quá nhiều lần thử. Vui lòng chờ vài phút.';
+      showAuthError('login-error', msg);
+    });
+}
+
+function registerUser() {
+  const email = document.getElementById('reg-email').value.trim();
+  const password = document.getElementById('reg-password').value;
+  const confirm = document.getElementById('reg-confirm').value;
+  hideAuthError('reg-error');
+  document.getElementById('reg-success').classList.remove('show');
+
+  if (!email) { showAuthError('reg-error', '⚠️ Vui lòng nhập email'); return; }
+  if (password.length < 6) { showAuthError('reg-error', '⚠️ Mật khẩu phải có ít nhất 6 ký tự'); return; }
+  if (password !== confirm) { showAuthError('reg-error', '⚠️ Mật khẩu xác nhận không khớp'); return; }
+
+  setAuthLoading('btn-register', true);
+  auth.createUserWithEmailAndPassword(email, password)
+    .then(() => {
+      const el = document.getElementById('reg-success');
+      el.textContent = '✅ Tạo tài khoản thành công! Đang chuyển hướng...';
+      el.classList.add('show');
+      // onAuthStateChanged will auto-login and load app
+    })
+    .catch(err => {
+      setAuthLoading('btn-register', false);
+      let msg = '❌ Đăng ký thất bại. Vui lòng thử lại.';
+      if (err.code === 'auth/email-already-in-use') msg = '❌ Email này đã được đăng ký. Hãy đăng nhập!';
+      else if (err.code === 'auth/invalid-email') msg = '❌ Email không hợp lệ.';
+      else if (err.code === 'auth/weak-password') msg = '❌ Mật khẩu quá yếu. Dùng ít nhất 6 ký tự.';
+      showAuthError('reg-error', msg);
+    });
+}
+
+function logoutUser() {
+  if (!confirm('Bạn có chắc muốn đăng xuất?')) return;
+  auth.signOut().then(() => {
+    document.getElementById('auth-screen').classList.remove('hidden');
+    document.getElementById('main-app').style.display = 'none';
+    // Reset form
+    document.getElementById('login-email').value = '';
+    document.getElementById('login-password').value = '';
+    setAuthLoading('btn-login', false);
+    switchAuthTab('login');
+    showToast('Đã đăng xuất thành công 👋');
+  });
+}
+
+// Auth state listener - gates app access
+function initAuth() {
+  auth.onAuthStateChanged(user => {
+    if (user) {
+      currentUser = user;
+      document.getElementById('auth-screen').classList.add('hidden');
+      document.getElementById('main-app').style.display = '';
+      // Load user-specific data from Firestore
+      loadUserData(user.uid);
+    } else {
+      currentUser = null;
+      document.getElementById('auth-screen').classList.remove('hidden');
+      document.getElementById('main-app').style.display = 'none';
+    }
+  });
+}
 
 // ==================== DATA LAYER ====================
 const STORAGE_KEY = 'ha_finance_v2';
@@ -66,38 +181,49 @@ function loadData() {
 function saveData() {
   // Save to localStorage immediately (fast, offline-first)
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-  // Sync to Firestore (cloud backup)
-  db.collection('finance').doc(DOC_ID).set(data)
-    .catch(err => console.warn('⚠️ Firebase sync error:', err));
+  // Sync to Firestore under user's own document
+  if (currentUser) {
+    db.collection('users').doc(currentUser.uid).collection('finance').doc('main').set(data)
+      .catch(err => console.warn('⚠️ Firebase sync error:', err));
+  }
 }
 
-// Load data from Firestore on startup (override localStorage if cloud has newer data)
-function loadFromFirestore() {
-  showSyncIndicator('Đang đồng bộ dữ liệu... ☁️');
-  db.collection('finance').doc(DOC_ID).get()
+// Load user-specific data from Firestore
+function loadUserData(uid) {
+  showSyncIndicator('Đang tải dữ liệu... ☁️');
+  db.collection('users').doc(uid).collection('finance').doc('main').get()
     .then(doc => {
       if (doc.exists) {
         data = doc.data();
         localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-        // Re-render after cloud data loaded
-        if (data.settings.darkMode) {
-          document.body.classList.add('dark');
-          document.getElementById('toggle-dark').checked = true;
-        }
-        document.querySelector('.greeting').textContent = `Xin chào, ${data.profile.name}!`;
-        document.querySelector('.settings-name').textContent = data.profile.name;
-        document.querySelector('.settings-email').textContent = data.profile.email;
-        renderDashboard();
-        showSyncIndicator('Đồng bộ thành công! ✅');
       } else {
-        // First time: push local data to Firestore
-        db.collection('finance').doc(DOC_ID).set(data)
-          .then(() => showSyncIndicator('Đã tạo dữ liệu trên cloud! ✅'));
+        // New user: seed with default data
+        data = JSON.parse(JSON.stringify(DEFAULT_DATA));
+        // Update profile email to their Firebase email
+        if (currentUser && currentUser.email) {
+          data.profile.email = currentUser.email;
+        }
+        db.collection('users').doc(uid).collection('finance').doc('main').set(data);
       }
+      // Apply settings & render
+      if (data.settings.darkMode) {
+        document.body.classList.add('dark');
+        document.getElementById('toggle-dark').checked = true;
+      } else {
+        document.body.classList.remove('dark');
+        document.getElementById('toggle-dark').checked = false;
+      }
+      if (data.settings.notifyEnabled) document.getElementById('toggle-notify').checked = true;
+      document.querySelector('.greeting').textContent = `Xin chào, ${data.profile.name}!`;
+      document.querySelector('.settings-name').textContent = data.profile.name;
+      document.querySelector('.settings-email').textContent = data.profile.email;
+      renderDashboard();
+      showSyncIndicator('Chào mừng trở lại! ✅');
     })
     .catch(err => {
       console.warn('⚠️ Không thể kết nối Firestore:', err);
       showSyncIndicator('Offline - dùng dữ liệu local 📱');
+      renderDashboard();
     });
 }
 
@@ -831,31 +957,16 @@ document.getElementById('chart-period').addEventListener('change', () => renderD
 
 // ==================== INIT ====================
 function init() {
-  // Dark mode
-  if (data.settings.darkMode) {
-    document.body.classList.add('dark');
-    document.getElementById('toggle-dark').checked = true;
-  }
-  if (data.settings.notifyEnabled) {
-    document.getElementById('toggle-notify').checked = true;
-  }
-  // Update profile UI
-  document.querySelector('.greeting').textContent = `Xin chào, ${data.profile.name}!`;
-  document.querySelector('.settings-name').textContent = data.profile.name;
-  document.querySelector('.settings-email').textContent = data.profile.email;
-
-  renderDashboard();
-
-  // 🔥 Sync with Firebase Firestore
-  loadFromFirestore();
+  // 🔐 Start Firebase Auth gate — blocks app until logged in
+  initAuth();
 }
-
 
 window.addEventListener('load', init);
 window.addEventListener('resize', () => {
   const homePage = document.getElementById('page-home');
-  if (homePage.classList.contains('active')) {
+  if (homePage && homePage.classList.contains('active')) {
     const months = parseInt(document.getElementById('chart-period').value) || 6;
     renderChart(months);
   }
 });
+
