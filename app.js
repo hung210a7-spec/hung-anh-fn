@@ -878,10 +878,34 @@ function saveBudget() {
 }
 
 // ==================== SETTINGS ====================
-function openEditProfile() { openModal('modal-profile'); }
+const CURRENCIES = [
+  { symbol: '₫',  code: 'VND', label: 'Việt Nam Đồng',   flag: '🆻🇳' },
+  { symbol: '$',   code: 'USD', label: 'US Dollar',         flag: '🇺🇸' },
+  { symbol: '€',  code: 'EUR', label: 'Euro',               flag: '🇪🇺' },
+  { symbol: '¥',  code: 'JPY', label: 'Japanese Yen',       flag: '🇯🇵' },
+  { symbol: '£',  code: 'GBP', label: 'British Pound',      flag: '🇬🇧' },
+  { symbol: '¥',  code: 'CNY', label: 'Tệ NDT (Trung Quốc)', flag: '🇨🇳' },
+  { symbol: '₩', code: 'KRW', label: 'Korean Won',          flag: '🇰🇷' },
+  { symbol: '฿',  code: 'THB', label: 'Thai Baht',          flag: '🇹🇭' },
+  { symbol: 'S$',  code: 'SGD', label: 'Singapore Dollar',   flag: '🇸🇬' },
+  { symbol: 'A$',  code: 'AUD', label: 'Australian Dollar',  flag: '🇦🇺' },
+  { symbol: 'C$',  code: 'CAD', label: 'Canadian Dollar',    flag: '🇨🇦' },
+  { symbol: '₹',  code: 'INR', label: 'Indian Rupee',        flag: '🇮🇳' },
+];
+
+function openEditProfile() {
+  document.getElementById('profile-name').value = data.profile.name || '';
+  document.getElementById('profile-email').value = data.profile.email || '';
+  document.getElementById('profile-birthday').value = data.profile.birthday || '';
+  openModal('modal-profile');
+}
+
 function saveProfile() {
-  data.profile.name = document.getElementById('profile-name').value;
-  data.profile.email = document.getElementById('profile-email').value;
+  const newName = document.getElementById('profile-name').value.trim();
+  if (!newName) { showToast('Vui lòng nhập tên!'); return; }
+  data.profile.name = newName;
+  data.profile.email = document.getElementById('profile-email').value.trim();
+  data.profile.birthday = document.getElementById('profile-birthday').value || '';
   saveData();
   document.querySelector('.settings-name').textContent = data.profile.name;
   document.querySelector('.settings-email').textContent = data.profile.email;
@@ -919,9 +943,7 @@ function openNotifySettings() {
   `).join('') || '<div class="empty-state" style="padding:30px 0"><div class="empty-icon">🔔</div><p>Không có thông báo</p></div>';
 }
 
-function openCurrencySettings() {
-  showToast('Chức năng đổi tiền tệ sẽ ra mắt sớm!');
-}
+
 
 function clearData() {
   if (confirm('Bạn có chắc muốn xóa toàn bộ giao dịch? Hành động này không thể hoàn tác.')) {

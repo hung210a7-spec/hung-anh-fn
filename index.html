@@ -564,7 +564,21 @@
           <label>Email</label>
           <input type="email" id="profile-email" value="hunganh@finance.vn" />
         </div>
+        <div class="form-group">
+          <label>Ngày sinh</label>
+          <input type="date" id="profile-birthday" style="color-scheme:dark" />
+        </div>
         <button class="btn-primary" onclick="saveProfile()">Lưu</button>
+      </div>
+    </div>
+
+    <!-- Currency Picker Modal -->
+    <div class="modal-overlay" id="modal-currency" onclick="closeModal('modal-currency')">
+      <div class="modal-sheet" onclick="event.stopPropagation()">
+        <div class="modal-handle"></div>
+        <h3 class="modal-title">Đơn vị tiền tệ</h3>
+        <div id="currency-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px"></div>
+        <button class="btn-primary" onclick="closeModal('modal-currency')">Xong</button>
       </div>
     </div>
 
