@@ -70,21 +70,25 @@ function loginUser() {
 }
 
 function registerUser() {
+  const name = document.getElementById('reg-name').value.trim();
   const email = document.getElementById('reg-email').value.trim();
   const password = document.getElementById('reg-password').value;
   const confirm = document.getElementById('reg-confirm').value;
   hideAuthError('reg-error');
   document.getElementById('reg-success').classList.remove('show');
 
+  if (!name) { showAuthError('reg-error', '⚠️ Vui lòng nhập tên hiển thị'); return; }
   if (!email) { showAuthError('reg-error', '⚠️ Vui lòng nhập email'); return; }
   if (password.length < 6) { showAuthError('reg-error', '⚠️ Mật khẩu phải có ít nhất 6 ký tự'); return; }
   if (password !== confirm) { showAuthError('reg-error', '⚠️ Mật khẩu xác nhận không khớp'); return; }
 
   setAuthLoading('btn-register', true);
   auth.createUserWithEmailAndPassword(email, password)
-    .then(() => {
+    .then((userCredential) => {
+      // Save display name to be used in loadUserData
+      window._pendingRegName = name;
       const el = document.getElementById('reg-success');
-      el.textContent = '✅ Tạo tài khoản thành công! Đang chuyển hướng...';
+      el.textContent = `✅ Chào mừng ${name}! Đang chuyển hướng...`;
       el.classList.add('show');
       // onAuthStateChanged will auto-login and load app
     })
@@ -97,6 +101,7 @@ function registerUser() {
       showAuthError('reg-error', msg);
     });
 }
+
 
 function logoutUser() {
   if (!confirm('Bạn có chắc muốn đăng xuất?')) return;
@@ -199,6 +204,11 @@ function loadUserData(uid) {
       } else {
         // New user: seed with default data
         data = JSON.parse(JSON.stringify(DEFAULT_DATA));
+        // Use the name entered during registration
+        if (window._pendingRegName) {
+          data.profile.name = window._pendingRegName;
+          window._pendingRegName = null;
+        }
         // Update profile email to their Firebase email
         if (currentUser && currentUser.email) {
           data.profile.email = currentUser.email;
