@@ -1,3 +1,19 @@
+// ==================== FIREBASE CONFIG ====================
+const firebaseConfig = {
+  apiKey: "AIzaSyBNE80VjvcwUd0VBXSZQQLLarI0SQHIQsQ",
+  authDomain: "hung-anh-fn.firebaseapp.com",
+  projectId: "hung-anh-fn",
+  storageBucket: "hung-anh-fn.firebasestorage.app",
+  messagingSenderId: "67209245744",
+  appId: "1:67209245744:web:ee983db31e993a687aa9f5",
+  measurementId: "G-0D0CKFGL3S"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+const analytics = firebase.analytics();
+const DOC_ID = 'main'; // single-doc strategy
+
 // ==================== DATA LAYER ====================
 const STORAGE_KEY = 'ha_finance_v2';
 
@@ -48,7 +64,49 @@ function loadData() {
 }
 
 function saveData() {
+  // Save to localStorage immediately (fast, offline-first)
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  // Sync to Firestore (cloud backup)
+  db.collection('finance').doc(DOC_ID).set(data)
+    .catch(err => console.warn('⚠️ Firebase sync error:', err));
+}
+
+// Load data from Firestore on startup (override localStorage if cloud has newer data)
+function loadFromFirestore() {
+  showSyncIndicator('Đang đồng bộ dữ liệu... ☁️');
+  db.collection('finance').doc(DOC_ID).get()
+    .then(doc => {
+      if (doc.exists) {
+        data = doc.data();
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        // Re-render after cloud data loaded
+        if (data.settings.darkMode) {
+          document.body.classList.add('dark');
+          document.getElementById('toggle-dark').checked = true;
+        }
+        document.querySelector('.greeting').textContent = `Xin chào, ${data.profile.name}!`;
+        document.querySelector('.settings-name').textContent = data.profile.name;
+        document.querySelector('.settings-email').textContent = data.profile.email;
+        renderDashboard();
+        showSyncIndicator('Đồng bộ thành công! ✅');
+      } else {
+        // First time: push local data to Firestore
+        db.collection('finance').doc(DOC_ID).set(data)
+          .then(() => showSyncIndicator('Đã tạo dữ liệu trên cloud! ✅'));
+      }
+    })
+    .catch(err => {
+      console.warn('⚠️ Không thể kết nối Firestore:', err);
+      showSyncIndicator('Offline - dùng dữ liệu local 📱');
+    });
+}
+
+function showSyncIndicator(msg) {
+  const toast = document.getElementById('toast');
+  if (!toast) return;
+  toast.textContent = msg;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 3000);
 }
 
 // ==================== CATEGORIES ====================
@@ -787,7 +845,11 @@ function init() {
   document.querySelector('.settings-email').textContent = data.profile.email;
 
   renderDashboard();
+
+  // 🔥 Sync with Firebase Firestore
+  loadFromFirestore();
 }
+
 
 window.addEventListener('load', init);
 window.addEventListener('resize', () => {
