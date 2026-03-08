@@ -394,7 +394,13 @@
     <div class="page" id="page-market">
       <header class="top-bar plain">
         <h2 class="page-title">📊 Thị trường</h2>
-        <button onclick="loadMarketData()" style="background:var(--color-primary-lt);border:none;border-radius:20px;padding:6px 14px;color:var(--color-primary);font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font)">&#128260; Cập nhật</button>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button onclick="openCart()" style="position:relative;background:var(--bg-card);border:none;border-radius:50%;width:40px;height:40px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow)" title="Giỏ hàng">
+            <svg viewBox="0 0 24 24" style="width:20px;height:20px;fill:var(--color-text)"><path d="M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59-1.35 2.45c-.16.28-.25.61-.25.96C5 16.1 6.1 17 7 17s.23-.01.34-.02l.13.02h11.34c1.1 0 2-.9 2-2s-.9-2-2-2H8.42l1.1-2h7.98c.75 0 1.41-.41 1.75-1.03l3.58-6.49A1 1 0 0 0 22 2H1zm16 16c-1.1 0-1.99.9-1.99 2S15.9 22 17 22s2-.9 2-2-.9-2-2-2z"/></svg>
+            <span id="cart-badge" style="display:none;position:absolute;top:2px;right:2px;background:#EE4D2D;color:#fff;font-size:9px;font-weight:700;width:16px;height:16px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid var(--bg-main)">0</span>
+          </button>
+          <button onclick="loadMarketData()" style="background:var(--color-primary-lt);border:none;border-radius:20px;padding:6px 14px;color:var(--color-primary);font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font)">↻ Cập nhật</button>
+        </div>
       </header>
       <div class="scroll-content">
 
@@ -638,6 +644,26 @@
         <div class="modal-handle"></div>
         <h3 class="modal-title">Thông báo</h3>
         <div id="notify-list"></div>
+      </div>
+    </div>
+
+    <!-- Cart / Wishlist Modal -->
+    <div class="modal-overlay" id="modal-cart" onclick="closeModal('modal-cart')">
+      <div class="modal-sheet" style="max-height:92vh" onclick="event.stopPropagation()">
+        <div class="modal-handle"></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
+          <h3 style="font-size:18px;font-weight:700;margin:0">🛒 Giỏ hàng của tôi</h3>
+          <button onclick="clearCart()" style="background:none;border:none;color:var(--color-expense);font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font)">Xóa tất cả</button>
+        </div>
+        <div id="cart-list"></div>
+        <div id="cart-total-wrap" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--color-border)">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:14px;font-weight:600">Tổng tham khảo</span>
+            <span id="cart-total" style="font-size:18px;font-weight:800;color:var(--color-primary)"></span>
+          </div>
+          <div style="font-size:11px;color:var(--color-sub);margin-top:4px">* Giá tham khảo, có thể thay đổi theo thị trường</div>
+        </div>
+        <button class="btn-primary" style="margin-top:16px;background:linear-gradient(135deg,#EE4D2D,#ff6d4a)" onclick="closeModal('modal-cart');switchPage('page-market')">🛍️ Tiếp tục xem hàng</button>
       </div>
     </div>
 

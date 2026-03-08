@@ -1116,7 +1116,99 @@ function closeGreeting() {
   document.getElementById('greeting-popup').classList.remove('show');
 }
 
-// ==================== MARKET DATA ====================
+// ==================== CART / WISHLIST ====================
+function getCart() {
+  if (!data.cart) data.cart = [];
+  return data.cart;
+}
+
+function updateCartBadge() {
+  var badge = document.getElementById('cart-badge');
+  if (!badge) return;
+  var count = getCart().length;
+  badge.textContent = count;
+  badge.style.display = count > 0 ? 'flex' : 'none';
+}
+
+function addToCart(item) {
+  var cart = getCart();
+  // Prevent duplicates by name
+  var exists = cart.find(function(c) { return c.name === item.name; });
+  if (exists) { showToast('Mặt hàng đã có trong giỏ! 🛒'); return; }
+  cart.push({
+    id: 'ci' + Date.now(),
+    name: item.name,
+    emoji: item.emoji || '🛒',
+    img: item.img || '',
+    price: item.price || item.min || 0,
+    priceMax: item.priceMax || item.max || 0,
+    cat: item.cat || 'Shopee',
+    link: item.link || ('https://shopee.vn/search?keyword=' + encodeURIComponent(item.name)),
+    addedAt: new Date().toLocaleDateString('vi-VN')
+  });
+  saveData();
+  updateCartBadge();
+  showToast('Đã thêm vào giỏ hàng! 🛒');
+}
+
+function removeFromCart(id) {
+  data.cart = getCart().filter(function(c) { return c.id !== id; });
+  saveData();
+  updateCartBadge();
+  openCart();
+}
+
+function clearCart() {
+  if (!confirm('Xóa toàn bộ giỏ hàng?')) return;
+  data.cart = [];
+  saveData();
+  updateCartBadge();
+  openCart();
+}
+
+function openCart() {
+  var cart = getCart();
+  var list = document.getElementById('cart-list');
+  var totalWrap = document.getElementById('cart-total-wrap');
+  var totalEl = document.getElementById('cart-total');
+  if (!list) return;
+
+  if (cart.length === 0) {
+    list.innerHTML = '<div style="text-align:center;padding:40px 0">'
+      + '<div style="font-size:56px;margin-bottom:12px">🛒</div>'
+      + '<div style="font-size:15px;font-weight:600;color:var(--color-text)">Giỏ hàng trống</div>'
+      + '<div style="font-size:12px;color:var(--color-sub);margin-top:6px">Thêm mặt hàng bạn muốn lưu tâm!</div>'
+      + '</div>';
+    totalWrap.style.display = 'none';
+  } else {
+    var total = 0;
+    var html = '<div style="display:flex;flex-direction:column;gap:10px">';
+    cart.forEach(function(item) {
+      total += item.price || 0;
+      var thumb = item.img
+        ? '<img src="' + item.img + '" style="width:52px;height:52px;object-fit:cover;border-radius:10px" onerror="this.outerHTML=\'<div style=&quot;width:52px;height:52px;border-radius:10px;background:var(--bg-main);display:flex;align-items:center;justify-content:center;font-size:24px&quot;>' + (item.emoji||'🛒') + '</div>\'">'
+        : '<div style="width:52px;height:52px;border-radius:10px;background:var(--bg-main);display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0">' + (item.emoji||'🛒') + '</div>';
+      html += '<div style="background:var(--bg-main);border-radius:14px;padding:12px 14px;display:flex;align-items:center;gap:12px">'
+        + '<div style="flex-shrink:0">' + thumb + '</div>'
+        + '<div style="flex:1;min-width:0">'
+        + '<a href="' + item.link + '" target="_blank" style="font-size:13px;font-weight:600;color:var(--color-text);text-decoration:none;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + item.name + '</a>'
+        + '<div style="font-size:11px;color:var(--color-sub);margin-top:2px">' + item.cat + ' · ' + item.addedAt + '</div>'
+        + '<div style="font-size:13px;font-weight:700;color:var(--color-primary);margin-top:3px">' + fmt(item.price) + (item.priceMax && item.priceMax > item.price ? ' ~ ' + fmt(item.priceMax) : '') + '</div>'
+        + '</div>'
+        + '<button onclick="removeFromCart(\'' + item.id + '\')" style="background:var(--color-expense-lt);border:none;border-radius:50%;width:30px;height:30px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0">'
+        + '<svg viewBox="0 0 24 24" style="width:16px;height:16px;fill:var(--color-expense)"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>'
+        + '</button>'
+        + '</div>';
+    });
+    html += '</div>';
+    list.innerHTML = html;
+    totalWrap.style.display = 'block';
+    totalEl.textContent = fmt(total);
+  }
+  openModal('modal-cart');
+}
+
+
 var _marketLoaded = false;
 
 var COMMODITIES = [
@@ -1304,17 +1396,20 @@ function searchMarket(q) {
     html = '<div style="font-size:11px;font-weight:700;color:var(--color-sub);letter-spacing:0.5px;text-transform:uppercase;margin-bottom:8px">📋 Giá tham khảo</div>';
     html += '<div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px">';
     filtered.slice(0, 12).forEach(function(c) {
-      html += '<div style="background:var(--bg-card);border-radius:14px;padding:13px 16px;display:flex;align-items:center;gap:12px;box-shadow:0 2px 8px rgba(0,0,0,0.05)">'
+      var inCart = getCart().find(function(x) { return x.name === c.name; });
+      html += '<div style="background:var(--bg-card);border-radius:14px;padding:13px 14px;display:flex;align-items:center;gap:10px;box-shadow:0 2px 8px rgba(0,0,0,0.05)">'
         + '<div style="width:52px;height:52px;border-radius:10px;background:var(--bg-main);display:flex;align-items:center;justify-content:center;font-size:28px;flex-shrink:0">' + c.emoji + '</div>'
         + '<div style="flex:1;min-width:0">'
         + '<div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + c.name + '</div>'
         + '<div style="font-size:11px;color:var(--color-sub);margin-top:2px">' + c.cat + '</div>'
+        + '<div style="font-size:12px;font-weight:700;color:var(--color-primary);margin-top:2px">' + fmt(c.min) + ' – ' + fmt(c.max) + '</div>'
         + '</div>'
-        + '<div style="text-align:right;flex-shrink:0">'
-        + '<div style="font-size:13px;font-weight:700;color:var(--color-primary)">' + fmt(c.min) + '</div>'
-        + '<div style="font-size:10px;color:var(--color-sub)">~ ' + fmt(c.max) + '</div>'
+        + '<div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0;align-items:center">'
+        + '<a href="https://shopee.vn/search?keyword=' + encodeURIComponent(c.name) + '" target="_blank" style="font-size:18px;text-decoration:none" title="Shopee">🛍️</a>'
+        + '<button onclick="addToCart({name:\'' + c.name.replace(/'/g,"&#39;") + '\',emoji:\'' + c.emoji + '\',min:' + c.min + ',max:' + c.max + ',cat:\'' + c.cat + '\',price:' + c.min + ',priceMax:' + c.max + '})" title="Thêm vào giỏ" style="background:' + (inCart ? '#EE4D2D' : 'var(--color-primary)') + ';border:none;border-radius:50%;width:30px;height:30px;cursor:pointer;display:flex;align-items:center;justify-content:center">'
+        + '<svg viewBox="0 0 24 24" style="width:16px;height:16px;fill:#fff"><path d="' + (inCart ? 'M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z' : 'M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z') + '"/></svg>'
+        + '</button>'
         + '</div>'
-        + '<a href="https://shopee.vn/search?keyword=' + encodeURIComponent(c.name) + '" target="_blank" style="font-size:18px;text-decoration:none;flex-shrink:0" title="Shopee">🛒</a>'
         + '</div>';
     });
     html += '</div>';
