@@ -19,8 +19,8 @@
 // =====================================================
 //  ⚙️ CẤU HÌNH WiFi — SỬA THÔNG TIN WiFi CỦA BẠN
 // =====================================================
-#define WIFI_SSID     "TEN_WIFI_CUA_BAN"
-#define WIFI_PASSWORD "MAT_KHAU_WIFI"
+#define WIFI_SSID     "Hung Minh"
+#define WIFI_PASSWORD "23456789"
 
 // =====================================================
 //  🔥 Firebase — Lấy từ Firebase Console
