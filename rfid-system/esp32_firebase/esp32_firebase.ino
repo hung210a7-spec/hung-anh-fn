@@ -77,18 +77,12 @@ void setup() {
   config.api_key = API_KEY;
   config.database_url = DATABASE_URL;
 
-  // Đăng nhập ẩn danh (vì Firebase rules = true)
-  if (Firebase.signUp(&config, &auth, "", "")) {
-    Serial.println("✅ Firebase: Da ket noi!");
-    firebaseReady = true;
-  } else {
-    Serial.println("❌ Firebase THAT BAI!");
-    Serial.println(config.signer.signupError.message.c_str());
-    return;
-  }
-
+  // Firebase rules đang public (true), nên không cần signUp
   Firebase.begin(&config, &auth);
   Firebase.reconnectNetwork(true);
+  
+  Serial.println("✅ Firebase: Da bat dau ket noi!");
+  firebaseReady = true;
 
   // ── Lắng nghe lệnh từ Firebase /control ──
   if (!Firebase.RTDB.beginStream(&streamFbdo, "/control")) {

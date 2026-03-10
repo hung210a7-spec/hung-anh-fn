@@ -25,7 +25,7 @@
 // =====================================================
 //  🔥 Firebase — Lấy từ Firebase Console
 // =====================================================
-#define API_KEY       "AIzaSyBnVoGKj8VmYFRnDts-jAIwOKBz5S7x_D4"
+#define API_KEY       "AIzaSyBoVEofW3IdbppeDdP9ksiIoA_zac0zS5U"
 #define DATABASE_URL  "https://hunganh-doam1-default-rtdb.asia-southeast1.firebasedatabase.app"
 
 // =====================================================
