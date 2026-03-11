@@ -47,7 +47,9 @@ unsigned long lastPumpChange = 0;
 // Thời gian (ms)
 const unsigned long SENSOR_INTERVAL  = 3000;  // DHT11 cần tối thiểu 2 giây
 const unsigned long RELAY_DEBOUNCE   = 5000;  // Chống giật relay 5 giây
+const unsigned long WARMUP_TIME      = 10000; // 10 giây chờ ổn định nguồn
 const unsigned long SERIAL_TIMEOUT   = 50;    // Timeout đọc serial
+bool warmupDone = false;
 
 // Buffer gửi JSON (không dùng String)
 char jsonBuf[100];
@@ -144,15 +146,19 @@ void setup() {
   lcd.setCursor(0, 0);
   lcd.print("  Khoi dong...  ");
   lcd.setCursor(0, 1);
-  lcd.print("   v3.0 Stable  ");
+  lcd.print(" v4.0 Anti-Reset");
 
   // Khởi tạo DHT11
   dht.begin();
-  delay(3000);  // DHT11 cần 2-3 giây sau cấp nguồn
+  delay(3000);
   lcd.clear();
 
-  Serial.println(F("Arduino Mega v3.0 - On dinh"));
-  Serial1.println(F("Arduino Mega v3.0 - On dinh"));
+  // Đặt thời gian relay = thời điểm hiện tại (chống bật ngay lúc boot)
+  lastFanChange  = millis();
+  lastPumpChange = millis();
+
+  Serial.println(F("Arduino v4.0 - Anti-Reset"));
+  Serial1.println(F("Arduino v4.0 - Anti-Reset"));
 }
 
 // =====================================================
@@ -196,6 +202,22 @@ void loop() {
       lcd.setCursor(0, 1); lcd.print("Kiem tra day    ");
       return;
     }
+  }
+
+  // ── Chờ 10 giây sau boot mới cho phép bật relay ──
+  if (!warmupDone) {
+    if (now < WARMUP_TIME) {
+      lcd.setCursor(0, 0);
+      lcd.print("Cho on dinh... ");
+      lcd.print((WARMUP_TIME - now) / 1000);
+      lcd.print("s ");
+      sendStatus(t, h);  // Vẫn gửi dữ liệu cảm biến
+      return;
+    }
+    warmupDone = true;
+    lastFanChange  = now;
+    lastPumpChange = now;
+    Serial.println(F(">> Warmup xong, bat dau hoat dong!"));
   }
 
   // ── Điều khiển tự động (có chống giật) ──
