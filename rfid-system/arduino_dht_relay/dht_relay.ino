@@ -17,14 +17,15 @@
 #include "DHT.h"
 
 #define DHTPIN         7
-#define RELAY_PIN      8   // Quạt
-#define PUMP_PIN       9   // Bơm
+#define RELAY_PIN      8   // Quạt → IN3 module 4 relay
+#define PUMP_PIN       9   // Bơm → IN2 module 4 relay
 #define DHTTYPE        DHT11
 #define TEMP_THRESHOLD 20.0
 #define HUM_THRESHOLD  75.0
 
-#define FAN_ON   HIGH
-#define FAN_OFF  LOW
+// Module 4 relay: cả 2 đều active LOW (IN = LOW → relay BẬT)
+#define FAN_ON   LOW
+#define FAN_OFF  HIGH
 #define PUMP_ON  LOW
 #define PUMP_OFF HIGH
 

@@ -1,170 +1,222 @@
 /*
  * =====================================================
- *  ESP32 — Cầu nối WiFi/Firebase cho Arduino Mega
+ *  Arduino Mega 2560 + DHT11 + Relay x2
+ *  PHIÊN BẢN ỔN ĐỊNH — CHỐNG RESET
  *
- *  Arduino gửi JSON qua Serial1 (Pin18/19)
- *    → ESP32 nhận qua Serial2 (GPIO16/17)
- *    → Đẩy lên Firebase
- *
- *  Web gửi lệnh qua Firebase
- *    → ESP32 nhận
- *    → Gửi cho Arduino qua Serial2
- *
- *  KHÔNG CẦN MÁY TÍNH SAU KHI NẠP CODE!
+ *  Sửa lỗi:
+ *  1. DHT11 đọc mỗi 3 giây (tối thiểu 2s theo datasheet)
+ *  2. Retry 3 lần khi đọc DHT thất bại
+ *  3. Không dùng String (tránh rò rỉ RAM)
+ *  4. Relay chống giật (debounce 5 giây)
+ *  5. Tương thích USB + ESP32 cùng lúc
  * =====================================================
  */
 
-#include <WiFi.h>
-#include <Firebase_ESP_Client.h>
-#include <addons/RTDBHelper.h>
-#include <ArduinoJson.h>
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+#include "DHT.h"
+
+#define DHTPIN         7
+#define RELAY_PIN      8   // Quạt
+#define PUMP_PIN       9   // Bơm
+#define DHTTYPE        DHT11
+#define TEMP_THRESHOLD 20.0
+#define HUM_THRESHOLD  75.0
+
+#define FAN_ON   HIGH
+#define FAN_OFF  LOW
+#define PUMP_ON  LOW
+#define PUMP_OFF HIGH
+
+DHT dht(DHTPIN, DHTTYPE);
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+
+bool fanState   = false;
+bool pumpState  = false;
+bool fanManual  = false;
+bool pumpManual = false;
+
+float lastT = NAN, lastH = NAN;
+int dhtErrorCount = 0;
+
+unsigned long lastSensorTime = 0;
+unsigned long lastFanChange  = 0;
+unsigned long lastPumpChange = 0;
+
+// Thời gian (ms)
+const unsigned long SENSOR_INTERVAL  = 3000;  // DHT11 cần tối thiểu 2 giây
+const unsigned long RELAY_DEBOUNCE   = 5000;  // Chống giật relay 5 giây
+const unsigned long SERIAL_TIMEOUT   = 50;    // Timeout đọc serial
+
+// Buffer gửi JSON (không dùng String)
+char jsonBuf[100];
 
 // =====================================================
-//  ⚙️ WiFi
-// =====================================================
-#define WIFI_SSID     "4G-UFI-0486"
-#define WIFI_PASSWORD "1234567890"
+void setFan(bool on) {
+  if (fanState == on) return;  // Không làm gì nếu trạng thái không đổi
+  fanState = on;
+  digitalWrite(RELAY_PIN, on ? FAN_ON : FAN_OFF);
+  lastFanChange = millis();
+}
 
+void setPump(bool on) {
+  if (pumpState == on) return;
+  pumpState = on;
+  digitalWrite(PUMP_PIN, on ? PUMP_ON : PUMP_OFF);
+  lastPumpChange = millis();
+}
 
-// =====================================================
-//  🔥 Firebase
-// =====================================================
-#define API_KEY       "AIzaSyBoVEofW3IdbppeDdP9ksiIoA_zac0zS5U"
-#define DATABASE_URL  "https://hunganh-doam1-default-rtdb.asia-southeast1.firebasedatabase.app"
+// Gửi JSON bằng char[] (không dùng String, tiết kiệm RAM)
+void sendStatus(float t, float h) {
+  snprintf(jsonBuf, sizeof(jsonBuf),
+    "{\"t\":%.1f,\"h\":%.1f,\"fan\":%s,\"pump\":%s}",
+    t, h,
+    fanState  ? "true" : "false",
+    pumpState ? "true" : "false"
+  );
+  Serial.println(jsonBuf);
+  Serial1.println(jsonBuf);
+}
 
-// =====================================================
-//  📡 Serial2 — Giao tiếp Arduino qua dây nối trực tiếp
-//     ESP32 GPIO16 (RX) ← Arduino Pin18 (TX1)
-//     ESP32 GPIO17 (TX) → Arduino Pin19 (RX1)
-// =====================================================
-#define RXD2 16
-#define TXD2 17
+// Đọc 1 lệnh từ Serial (có timeout, không blocking)
+bool readCommand(Stream &port, char *buf, int maxLen) {
+  if (!port.available()) return false;
+  
+  int i = 0;
+  unsigned long start = millis();
+  while (millis() - start < SERIAL_TIMEOUT && i < maxLen - 1) {
+    if (port.available()) {
+      char c = port.read();
+      if (c == '\n' || c == '\r') {
+        if (i > 0) break;  // Kết thúc lệnh
+        continue;          // Bỏ qua ký tự rỗng đầu
+      }
+      buf[i++] = c;
+    }
+  }
+  buf[i] = '\0';
+  return i > 0;
+}
 
-// =====================================================
-FirebaseData fbdo;
-FirebaseData streamFbdo;
-FirebaseAuth auth;
-FirebaseConfig config;
+// Xử lý lệnh
+void handleCommand(const char *cmd) {
+  if (strcmp(cmd, "FAN:ON")   == 0) { fanManual  = true;  setFan(true);   }
+  if (strcmp(cmd, "FAN:OFF")  == 0) { fanManual  = true;  setFan(false);  }
+  if (strcmp(cmd, "PUMP:ON")  == 0) { pumpManual = true;  setPump(true);  }
+  if (strcmp(cmd, "PUMP:OFF") == 0) { pumpManual = true;  setPump(false); }
+  if (strcmp(cmd, "AUTO")     == 0) { fanManual  = false; pumpManual = false; }
+}
 
-unsigned long lastSendTime = 0;
-const unsigned long SEND_INTERVAL = 2000;
-
-String lastCmdId = "";
-bool firebaseOK = false;
+// Đọc DHT11 với retry
+bool readDHT(float &t, float &h) {
+  for (int retry = 0; retry < 3; retry++) {
+    h = dht.readHumidity();
+    t = dht.readTemperature();
+    if (!isnan(h) && !isnan(t)) {
+      // Kiểm tra giá trị hợp lệ
+      if (t > -10 && t < 60 && h > 0 && h < 100) {
+        return true;
+      }
+    }
+    delay(100);  // Chờ 100ms rồi thử lại
+  }
+  return false;
+}
 
 // =====================================================
 void setup() {
-  Serial.begin(115200);                          // Debug USB
-  Serial2.begin(9600, SERIAL_8N1, RXD2, TXD2);  // UART Arduino
+  // Khởi tạo Serial
+  Serial.begin(9600);
+  Serial1.begin(9600);
+  Serial.setTimeout(SERIAL_TIMEOUT);
+  Serial1.setTimeout(SERIAL_TIMEOUT);
 
-  Serial.println("\n=============================");
-  Serial.println(" ESP32 Firebase Bridge v2");
-  Serial.println("=============================");
+  // Khởi tạo relay ở trạng thái TẮT
+  pinMode(RELAY_PIN, OUTPUT);
+  pinMode(PUMP_PIN, OUTPUT);
+  digitalWrite(RELAY_PIN, FAN_OFF);
+  digitalWrite(PUMP_PIN, PUMP_OFF);
 
-  // ── WiFi ──
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  Serial.print("WiFi");
-  int timeout = 0;
-  while (WiFi.status() != WL_CONNECTED && timeout < 30) {
-    delay(500);
-    Serial.print(".");
-    timeout++;
-  }
+  // Khởi tạo LCD
+  lcd.init();
+  lcd.backlight();
+  lcd.setCursor(0, 0);
+  lcd.print("  Khoi dong...  ");
+  lcd.setCursor(0, 1);
+  lcd.print("   v3.0 Stable  ");
 
-  if (WiFi.status() == WL_CONNECTED) {
-    Serial.println("\nWiFi: " + WiFi.SSID());
-    Serial.println("IP: " + WiFi.localIP().toString());
-  } else {
-    Serial.println("\nWiFi THAT BAI!");
-    return;
-  }
+  // Khởi tạo DHT11
+  dht.begin();
+  delay(3000);  // DHT11 cần 2-3 giây sau cấp nguồn
+  lcd.clear();
 
-  // ── Firebase (Test Mode — No Auth) ──
-  config.api_key = API_KEY;
-  config.database_url = DATABASE_URL;
-  config.signer.test_mode = true;
-
-  Firebase.begin(&config, &auth);
-  Firebase.reconnectNetwork(true);
-
-  firebaseOK = true;
-  Serial.println("Firebase: OK!");
-
-  // ── Lắng nghe lệnh /control ──
-  if (Firebase.RTDB.beginStream(&streamFbdo, "/control")) {
-    Serial.println("Dang lang nghe lenh tu web...");
-  } else {
-    Serial.println("Stream loi: " + streamFbdo.errorReason());
-  }
-
-  Serial.println("=============================\n");
+  Serial.println(F("Arduino Mega v3.0 - On dinh"));
+  Serial1.println(F("Arduino Mega v3.0 - On dinh"));
 }
 
 // =====================================================
 void loop() {
-  if (!firebaseOK) return;
+  char cmdBuf[20];
 
-  // ── 1. Nhận JSON từ Arduino → Đẩy lên Firebase ──
-  if (Serial2.available()) {
-    String line = Serial2.readStringUntil('\n');
-    line.trim();
-
-    if (line.startsWith("{") && millis() - lastSendTime > SEND_INTERVAL) {
-      Serial.println("Arduino: " + line);
-
-      StaticJsonDocument<256> doc;
-      DeserializationError err = deserializeJson(doc, line);
-
-      if (!err) {
-        FirebaseJson json;
-        json.set("t", doc["t"].as<float>());
-        json.set("h", doc["h"].as<float>());
-        json.set("fan", doc["fan"].as<bool>());
-        json.set("pump", doc["pump"].as<bool>());
-        json.set("updatedAt", (unsigned long)millis());
-
-        if (Firebase.RTDB.setJSON(&fbdo, "/sensor", &json)) {
-          Serial.println("-> Firebase OK");
-        } else {
-          Serial.println("-> Firebase loi: " + fbdo.errorReason());
-        }
-        lastSendTime = millis();
-      }
-    }
+  // ── Nhận lệnh từ USB ──
+  if (readCommand(Serial, cmdBuf, sizeof(cmdBuf))) {
+    Serial.print(F("[USB] ")); Serial.println(cmdBuf);
+    handleCommand(cmdBuf);
   }
 
-  // ── 2. Nhận lệnh từ Firebase → Gửi cho Arduino ──
-  if (Firebase.RTDB.readStream(&streamFbdo)) {
-    if (streamFbdo.streamAvailable()) {
-      if (streamFbdo.dataType() == "json") {
-        FirebaseJson json = streamFbdo.jsonObject();
-        FirebaseJsonData cmdData, idData;
+  // ── Nhận lệnh từ ESP32 ──
+  if (readCommand(Serial1, cmdBuf, sizeof(cmdBuf))) {
+    Serial.print(F("[ESP] ")); Serial.println(cmdBuf);
+    handleCommand(cmdBuf);
+  }
 
-        json.get(cmdData, "cmd");
-        json.get(idData, "id");
+  // ── Đọc cảm biến mỗi 3 giây ──
+  unsigned long now = millis();
+  if (now - lastSensorTime < SENSOR_INTERVAL) return;
+  lastSensorTime = now;
 
-        if (cmdData.success) {
-          String cmd = cmdData.stringValue;
-          String cmdId = idData.success ? idData.stringValue : String(millis());
-
-          if (cmdId != lastCmdId && cmd.length() > 0) {
-            lastCmdId = cmdId;
-            Serial2.println(cmd);       // Gửi cho Arduino
-            Serial.println("Web -> Arduino: " + cmd);
-          }
-        }
-      }
-    }
+  float t, h;
+  if (readDHT(t, h)) {
+    // Đọc thành công
+    lastT = t;
+    lastH = h;
+    dhtErrorCount = 0;
   } else {
-    Serial.println("Stream mat, thu lai...");
-    Firebase.RTDB.beginStream(&streamFbdo, "/control");
+    // Đọc thất bại
+    dhtErrorCount++;
+    if (!isnan(lastT) && !isnan(lastH) && dhtErrorCount < 10) {
+      // Dùng giá trị cũ (tối đa 10 lần liên tiếp)
+      t = lastT;
+      h = lastH;
+    } else {
+      // Lỗi quá nhiều lần
+      lcd.setCursor(0, 0); lcd.print("LOI DHT11! (#");
+      lcd.print(dhtErrorCount); lcd.print(")  ");
+      lcd.setCursor(0, 1); lcd.print("Kiem tra day    ");
+      return;
+    }
   }
 
-  // ── 3. Kiểm tra WiFi ──
-  if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("WiFi mat!");
-    WiFi.reconnect();
-    delay(3000);
+  // ── Điều khiển tự động (có chống giật) ──
+  if (!fanManual && (now - lastFanChange > RELAY_DEBOUNCE)) {
+    setFan(t < TEMP_THRESHOLD);
   }
+  if (!pumpManual && (now - lastPumpChange > RELAY_DEBOUNCE)) {
+    setPump(h < HUM_THRESHOLD);
+  }
+
+  // ── Gửi JSON ──
+  sendStatus(t, h);
+
+  // ── LCD ──
+  lcd.setCursor(0, 0);
+  lcd.print("T:"); lcd.print(t, 1);
+  lcd.print((char)223); lcd.print("C ");
+  lcd.print(fanState ? "QUAT:ON " : "QUAT:OFF");
+
+  lcd.setCursor(0, 1);
+  lcd.print("H:"); lcd.print(h, 1);
+  lcd.print("% ");
+  lcd.print(pumpState ? "BOM:ON  " : "BOM:OFF ");
 }
 
