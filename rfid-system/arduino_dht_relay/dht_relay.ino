@@ -1,13 +1,15 @@
 /*
  * =====================================================
  *  Arduino Mega 2560 + DHT11 + Relay x2
- *  CÓ GIAO TIẾP WEB QUA SERIAL
+ *  GIAO TIẾP VỚI ESP32 QUA Serial1 (Pin18 TX, Pin19 RX)
  *
- *  SERIAL OUT: Gửi JSON mỗi 3 giây
- *  {"t":28.5,"h":65.0,"fan":false,"pump":true}
+ *  Serial1 OUT → ESP32: Gửi JSON mỗi 1 giây
+ *  {\"t\":28.5,\"h\":65.0,\"fan\":false,\"pump\":true}
  *
- *  SERIAL IN: Nhận lệnh từ Node.js
- *  "FAN:ON" | "FAN:OFF" | "PUMP:ON" | "PUMP:OFF"
+ *  Serial1 IN ← ESP32: Nhận lệnh từ web
+ *  "FAN:ON" | "FAN:OFF" | "PUMP:ON" | "PUMP:OFF" | "AUTO"
+ *
+ *  Serial (USB) dùng để debug khi cắm máy tính (tùy chọn)
  * =====================================================
  */
 
@@ -32,7 +34,7 @@ LiquidCrystal_I2C lcd(0x27, 16, 2);
 
 bool fanState  = false;
 bool pumpState = false;
-bool fanManual  = false; // true = điều khiển tay, false = tự động
+bool fanManual  = false;
 bool pumpManual = false;
 
 // =====================================================
@@ -43,24 +45,27 @@ void setFan(bool on) {
 
 void setPump(bool on) {
   pumpState = on;
-  digitalWrite(PUMP_PIN, on ? PUMP_ON : PUMP_OFF); // LOW=bật, HIGH=tắt
+  digitalWrite(PUMP_PIN, on ? PUMP_ON : PUMP_OFF);
 }
 
+// Gửi JSON qua Serial1 → ESP32
 void sendStatus(float t, float h) {
-  Serial.print("{\"t\":");
-  Serial.print(t, 1);
-  Serial.print(",\"h\":");
-  Serial.print(h, 1);
-  Serial.print(",\"fan\":");
-  Serial.print(fanState ? "true" : "false");
-  Serial.print(",\"pump\":");
-  Serial.print(pumpState ? "true" : "false");
-  Serial.println("}");
+  Serial1.print("{\"t\":");
+  Serial1.print(t, 1);
+  Serial1.print(",\"h\":");
+  Serial1.print(h, 1);
+  Serial1.print(",\"fan\":");
+  Serial1.print(fanState ? "true" : "false");
+  Serial1.print(",\"pump\":");
+  Serial1.print(pumpState ? "true" : "false");
+  Serial1.println("}");
 }
 
 // =====================================================
 void setup() {
-  Serial.begin(9600);
+  Serial.begin(9600);    // USB debug (tùy chọn)
+  Serial1.begin(9600);   // Giao tiếp ESP32 (Pin18=TX1, Pin19=RX1)
+
   pinMode(RELAY_PIN, OUTPUT);
   pinMode(PUMP_PIN, OUTPUT);
   setFan(false);
@@ -71,27 +76,41 @@ void setup() {
   lcd.setCursor(0, 0);
   lcd.print("  Khoi dong...  ");
   dht.begin();
-  delay(3000); // DHT11 cần ít nhất 2-3 giây sau khi cấp nguồn
+  delay(3000);
   lcd.clear();
+
+  Serial.println("Arduino Mega san sang!");
+  Serial.println("Giao tiep ESP32 qua Serial1 (Pin18/19)");
 }
 
 // =====================================================
-// Biến đếm thời gian bằng millis (không blocking)
 unsigned long lastSensorTime = 0;
-const unsigned long SENSOR_INTERVAL = 1000; // 1 giây
+const unsigned long SENSOR_INTERVAL = 1000;
 float lastT = NAN, lastH = NAN;
 
 void loop() {
-  // ── Đọc lệnh Serial liên tục (không bị chặn) ──
+  // ── Đọc lệnh từ ESP32 qua Serial1 ──
+  if (Serial1.available() > 0) {
+    String cmd = Serial1.readStringUntil('\n');
+    cmd.trim();
+    Serial.print("ESP32 gui: ["); Serial.print(cmd); Serial.println("]");
+
+    if (cmd == "FAN:ON")   { fanManual  = true;  setFan(true);   }
+    if (cmd == "FAN:OFF")  { fanManual  = true;  setFan(false);  }
+    if (cmd == "PUMP:ON")  { pumpManual = true;  setPump(true);  }
+    if (cmd == "PUMP:OFF") { pumpManual = true;  setPump(false); }
+    if (cmd == "AUTO")     { fanManual  = false; pumpManual = false; }
+  }
+
+  // ── Đọc lệnh từ USB debug (tùy chọn, khi cắm máy tính) ──
   if (Serial.available() > 0) {
     String cmd = Serial.readStringUntil('\n');
     cmd.trim();
-    Serial.print("LENH NHAN: ["); Serial.print(cmd); Serial.println("]");
-    if (cmd == "FAN:ON")   { fanManual  = true;  setFan(true);   Serial.println("-> Bat quat"); }
-    if (cmd == "FAN:OFF")  { fanManual  = true;  setFan(false);  Serial.println("-> Tat quat"); }
-    if (cmd == "PUMP:ON")  { pumpManual = true;  setPump(true);  Serial.println("-> Bat bom");  }
-    if (cmd == "PUMP:OFF") { pumpManual = true;  setPump(false); Serial.println("-> Tat bom");  }
-    if (cmd == "AUTO")     { fanManual  = false; pumpManual = false; Serial.println("-> Auto"); }
+    if (cmd == "FAN:ON")   { fanManual  = true;  setFan(true);   }
+    if (cmd == "FAN:OFF")  { fanManual  = true;  setFan(false);  }
+    if (cmd == "PUMP:ON")  { pumpManual = true;  setPump(true);  }
+    if (cmd == "PUMP:OFF") { pumpManual = true;  setPump(false); }
+    if (cmd == "AUTO")     { fanManual  = false; pumpManual = false; }
   }
 
   // ── Cập nhật cảm biến mỗi 1 giây ──
@@ -99,12 +118,10 @@ void loop() {
   if (now - lastSensorTime < SENSOR_INTERVAL) return;
   lastSensorTime = now;
 
-  // Đọc DHT11 (không dùng delay trong retry)
   float h = dht.readHumidity();
   float t = dht.readTemperature();
 
   if (isnan(h) || isnan(t)) {
-    // Dùng giá trị cũ nếu có, không vẽ lỗi lên LCD liên tục
     if (!isnan(lastT) && !isnan(lastH)) {
       h = lastH; t = lastT;
     } else {
@@ -116,14 +133,14 @@ void loop() {
     lastT = t; lastH = h;
   }
 
-  // ── Điều khiển tự động ──
+  // Điều khiển tự động
   if (!fanManual)  setFan(t  < TEMP_THRESHOLD);
   if (!pumpManual) setPump(h < HUM_THRESHOLD);
 
-  // ── Gửi JSON lên Node.js ──
+  // Gửi JSON → ESP32
   sendStatus(t, h);
 
-  // ── LCD ──
+  // LCD
   lcd.setCursor(0, 0);
   lcd.print("T:"); lcd.print(t, 1);
   lcd.print((char)223); lcd.print("C ");
@@ -134,4 +151,3 @@ void loop() {
   lcd.print("% ");
   lcd.print(pumpState ? "BOM:ON  " : "BOM:OFF ");
 }
-
