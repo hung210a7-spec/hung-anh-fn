@@ -83,28 +83,33 @@ void sendStatus(float t, float h) {
   Serial1.println(jsonBuf);
 }
 
-// Đọc lệnh Serial (không blocking)
+// Đọc lệnh Serial (dùng String cho an toàn & dễ xử lý lệnh ngắn)
 void checkSerial(Stream &port, const char* tag) {
   if (!port.available()) return;
-  char buf[20];
-  int i = 0;
-  unsigned long start = millis();
-  while (millis() - start < 50 && i < 19) {
-    if (port.available()) {
-      char c = port.read();
-      if (c == '\n' || c == '\r') { if (i > 0) break; continue; }
-      buf[i++] = c;
-    }
-  }
-  buf[i] = '\0';
-  if (i == 0) return;
+  
+  String cmd = port.readStringUntil('\n');
+  cmd.trim();
+  if (cmd.length() == 0) return;
 
-  Serial.print(tag); Serial.println(buf);
-  if (strcmp(buf, "FAN:ON")   == 0) { fanManual  = true;  setFan(true);   }
-  if (strcmp(buf, "FAN:OFF")  == 0) { fanManual  = true;  setFan(false);  }
-  if (strcmp(buf, "PUMP:ON")  == 0) { pumpManual = true;  setPump(true);  }
-  if (strcmp(buf, "PUMP:OFF") == 0) { pumpManual = true;  setPump(false); }
-  if (strcmp(buf, "AUTO")     == 0) { fanManual  = false; pumpManual = false; }
+  Serial.print(tag); Serial.println(cmd);
+
+  // Không cho phép điều khiển nếu đang trong thời gian warmup (để chống reset)
+  if (!warmupDone) {
+    Serial.println(F("Dang warmup, tu choi lenh!"));
+    return;
+  }
+
+  bool changed = false;
+  if (cmd == "FAN:ON")   { fanManual  = true;  setFan(true);   changed = true; }
+  if (cmd == "FAN:OFF")  { fanManual  = true;  setFan(false);  changed = true; }
+  if (cmd == "PUMP:ON")  { pumpManual = true;  setPump(true);  changed = true; }
+  if (cmd == "PUMP:OFF") { pumpManual = true;  setPump(false); changed = true; }
+  if (cmd == "AUTO")     { fanManual  = false; pumpManual = false; changed = true; }
+
+  // Gửi trạng thái ngay lập tức để web cập nhật tức thời (thời gian thực)!
+  if (changed) {
+    sendStatus(lastT, lastH);
+  }
 }
 
 // Đọc DHT11 (retry 3 lần)
