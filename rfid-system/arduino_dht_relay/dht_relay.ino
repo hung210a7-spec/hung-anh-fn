@@ -27,11 +27,11 @@
 #define TEMP_THRESHOLD 20.0
 #define HUM_THRESHOLD  75.0
 
-// ── 2 relay riêng: quạt kích HIGH, bơm kích LOW ──
+// ── 2 relay riêng: cả 2 đều kích HIGH = bật ──
 #define FAN_ON   HIGH
 #define FAN_OFF  LOW
-#define PUMP_ON  LOW
-#define PUMP_OFF HIGH
+#define PUMP_ON  HIGH
+#define PUMP_OFF LOW
 
 // ── Thời gian (ms) ──
 #define SENSOR_INTERVAL  3000   // Đọc DHT mỗi 3 giây
