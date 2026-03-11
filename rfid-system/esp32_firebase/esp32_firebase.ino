@@ -83,7 +83,8 @@ void setup() {
     Serial.println("OK!");
     firebaseReady = true;
   } else {
-    Serial.println("Loi: " + config.signer.signupError.message);
+    Serial.print("Loi: ");
+    Serial.println(config.signer.signupError.message.c_str());
     return;
   }
 
