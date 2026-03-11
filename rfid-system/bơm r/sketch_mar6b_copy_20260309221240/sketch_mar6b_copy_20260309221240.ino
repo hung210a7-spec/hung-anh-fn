@@ -19,8 +19,8 @@
 // =====================================================
 //  ⚙️ CẤU HÌNH WiFi — SỬA THÔNG TIN WiFi CỦA BẠN
 // =====================================================
-#define WIFI_SSID     "Hung Minh"
-#define WIFI_PASSWORD "23456789"
+#define WIFI_SSID     "4G-UFI-0486"
+#define WIFI_PASSWORD "1234567890"
 
 // =====================================================
 //  🔥 Firebase — Lấy từ Firebase Console
@@ -83,7 +83,8 @@ void setup() {
     Serial.println("OK!");
     firebaseReady = true;
   } else {
-    Serial.println("Loi: " + config.signer.signupError.message);
+    Serial.print("Loi: ");
+    Serial.println(config.signer.signupError.message.c_str());
     return;
   }
 

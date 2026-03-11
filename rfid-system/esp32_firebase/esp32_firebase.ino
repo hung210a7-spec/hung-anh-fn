@@ -77,19 +77,14 @@ void setup() {
   config.api_key = API_KEY;
   config.database_url = DATABASE_URL;
 
-  // Đăng nhập ẩn danh (bắt buộc với thư viện này dù Rule là public)
-  Serial.print("Dang dang nhap Firebase... ");
-  if (Firebase.signUp(&config, &auth, "", "")) {
-    Serial.println("OK!");
-    firebaseReady = true;
-  } else {
-    Serial.print("Loi: ");
-    Serial.println(config.signer.signupError.message.c_str());
-    return;
-  }
-
+  // Thiết lập chế độ Test Mode (bỏ qua Authentication)
+  config.signer.test_mode = true;
+  
   Firebase.begin(&config, &auth);
   Firebase.reconnectNetwork(true);
+  
+  Serial.println("✅ Firebase: Da bat dau ket noi (No Auth)!");
+  firebaseReady = true;
 
   // ── Lắng nghe lệnh từ Firebase /control ──
   if (!Firebase.RTDB.beginStream(&streamFbdo, "/control")) {
