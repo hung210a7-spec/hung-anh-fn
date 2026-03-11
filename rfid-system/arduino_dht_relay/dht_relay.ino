@@ -161,13 +161,15 @@ void loop() {
     lastT = t; lastH = h; dhtErrors = 0;
   } else {
     dhtErrors++;
-    if (!isnan(lastT) && !isnan(lastH) && dhtErrors < 10) {
-      t = lastT; h = lastH;
+    if (!isnan(lastT) && !isnan(lastH)) {
+      t = lastT; h = lastH;  // Dùng giá trị cũ
     } else {
-      lcd.setCursor(0, 0); lcd.print("LOI DHT11! (#");
+      t = 25.0; h = 50.0;    // Giá trị mặc định (relay vẫn chạy!)
+    }
+    if (dhtErrors % 5 == 1) { // Hiển thị lỗi nhưng KHÔNG dừng
+      lcd.setCursor(0, 0); lcd.print("DHT11 loi! (#");
       lcd.print(dhtErrors); lcd.print(")  ");
-      lcd.setCursor(0, 1); lcd.print("Kiem tra day    ");
-      return;
+      lcd.setCursor(0, 1); lcd.print("Van dieu khien  ");
     }
   }
 

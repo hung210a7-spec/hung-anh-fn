@@ -1,15 +1,13 @@
 /*
  * =====================================================
- *  Arduino Mega 2560 — v4.0 Anti-Reset
- *  Module 4 Relay (Active LOW) + DHT11 + LCD I2C
+ *  Arduino Mega 2560 — v4.1
+ *  2 Relay riêng + DHT11 + LCD I2C
  *
  *  Nối dây:
- *    Pin 8  → IN3 relay (Quạt)   | COM3 ← (+)Nguồn | NO3 → (+)Quạt
- *    Pin 9  → IN2 relay (Bơm)    | COM2 ← (+)Nguồn | NO2 → (+)Bơm
+ *    Pin 8  → Relay quạt (kích HIGH = bật)
+ *    Pin 9  → Relay bơm  (kích LOW  = bật)
  *    Pin 7  → DHT11 DATA
  *    SDA/SCL → LCD I2C
- *    (-)Quạt → (-)Nguồn
- *    (-)Bơm  → (-)Nguồn
  *
  *  Tương thích: USB + ESP32 cùng lúc
  * =====================================================
@@ -21,17 +19,17 @@
 
 // ── Chân kết nối ──
 #define DHTPIN         7
-#define RELAY_PIN      8   // Quạt → IN3
-#define PUMP_PIN       9   // Bơm  → IN2
+#define RELAY_PIN      8   // Quạt (relay riêng)
+#define PUMP_PIN       9   // Bơm  (relay riêng)
 #define DHTTYPE        DHT11
 
 // ── Ngưỡng tự động ──
 #define TEMP_THRESHOLD 20.0
 #define HUM_THRESHOLD  75.0
 
-// ── Module 4 relay: Active LOW (IN=LOW → bật) ──
-#define FAN_ON   LOW
-#define FAN_OFF  HIGH
+// ── 2 relay riêng: quạt kích HIGH, bơm kích LOW ──
+#define FAN_ON   HIGH
+#define FAN_OFF  LOW
 #define PUMP_ON  LOW
 #define PUMP_OFF HIGH
 
@@ -59,8 +57,6 @@ unsigned long lastPumpChange = 0;
 char jsonBuf[100];
 
 // =====================================================
-//  Điều khiển relay
-// =====================================================
 void setFan(bool on) {
   if (fanState == on) return;
   fanState = on;
@@ -75,9 +71,7 @@ void setPump(bool on) {
   lastPumpChange = millis();
 }
 
-// =====================================================
-//  Gửi JSON qua cả USB và ESP32
-// =====================================================
+// Gửi JSON qua cả USB và ESP32
 void sendStatus(float t, float h) {
   snprintf(jsonBuf, sizeof(jsonBuf),
     "{\"t\":%.1f,\"h\":%.1f,\"fan\":%s,\"pump\":%s}",
@@ -89,23 +83,16 @@ void sendStatus(float t, float h) {
   Serial1.println(jsonBuf);
 }
 
-// =====================================================
-//  Đọc lệnh Serial (không blocking)
-// =====================================================
+// Đọc lệnh Serial (không blocking)
 void checkSerial(Stream &port, const char* tag) {
   if (!port.available()) return;
-  
   char buf[20];
   int i = 0;
   unsigned long start = millis();
-  
   while (millis() - start < 50 && i < 19) {
     if (port.available()) {
       char c = port.read();
-      if (c == '\n' || c == '\r') {
-        if (i > 0) break;
-        continue;
-      }
+      if (c == '\n' || c == '\r') { if (i > 0) break; continue; }
       buf[i++] = c;
     }
   }
@@ -113,7 +100,6 @@ void checkSerial(Stream &port, const char* tag) {
   if (i == 0) return;
 
   Serial.print(tag); Serial.println(buf);
-
   if (strcmp(buf, "FAN:ON")   == 0) { fanManual  = true;  setFan(true);   }
   if (strcmp(buf, "FAN:OFF")  == 0) { fanManual  = true;  setFan(false);  }
   if (strcmp(buf, "PUMP:ON")  == 0) { pumpManual = true;  setPump(true);  }
@@ -121,78 +107,62 @@ void checkSerial(Stream &port, const char* tag) {
   if (strcmp(buf, "AUTO")     == 0) { fanManual  = false; pumpManual = false; }
 }
 
-// =====================================================
-//  Đọc DHT11 (retry 3 lần)
-// =====================================================
+// Đọc DHT11 (retry 3 lần)
 bool readDHT(float &t, float &h) {
   for (int i = 0; i < 3; i++) {
     h = dht.readHumidity();
     t = dht.readTemperature();
-    if (!isnan(h) && !isnan(t) && t > -10 && t < 60 && h > 0 && h < 100) {
+    if (!isnan(h) && !isnan(t) && t > -10 && t < 60 && h > 0 && h < 100)
       return true;
-    }
     delay(100);
   }
   return false;
 }
 
 // =====================================================
-//  SETUP
-// =====================================================
 void setup() {
   Serial.begin(9600);
   Serial1.begin(9600);
 
-  // Relay TẮT ngay lập tức
   pinMode(RELAY_PIN, OUTPUT);
   pinMode(PUMP_PIN, OUTPUT);
-  digitalWrite(RELAY_PIN, FAN_OFF);   // HIGH = tắt
-  digitalWrite(PUMP_PIN, PUMP_OFF);   // HIGH = tắt
+  digitalWrite(RELAY_PIN, FAN_OFF);
+  digitalWrite(PUMP_PIN, PUMP_OFF);
 
-  // LCD
   lcd.init();
   lcd.backlight();
   lcd.setCursor(0, 0);
   lcd.print("  Khoi dong...  ");
   lcd.setCursor(0, 1);
-  lcd.print(" v4.0 Anti-Reset");
+  lcd.print("  v4.1  2-Relay ");
 
-  // DHT
   dht.begin();
   delay(3000);
   lcd.clear();
 
-  // Đặt thời điểm relay = bây giờ (chống bật ngay)
   lastFanChange  = millis();
   lastPumpChange = millis();
 
-  Serial.println(F("Arduino v4.0 Anti-Reset"));
-  Serial1.println(F("Arduino v4.0 Anti-Reset"));
+  Serial.println(F("Arduino v4.1 - 2 Relay"));
+  Serial1.println(F("Arduino v4.1 - 2 Relay"));
 }
 
 // =====================================================
-//  LOOP
-// =====================================================
 void loop() {
-  // ── Nhận lệnh ──
   checkSerial(Serial,  "[USB] ");
   checkSerial(Serial1, "[ESP] ");
 
-  // ── Đọc cảm biến mỗi 3 giây ──
   unsigned long now = millis();
   if (now - lastSensorTime < SENSOR_INTERVAL) return;
   lastSensorTime = now;
 
   float t, h;
   if (readDHT(t, h)) {
-    lastT = t;
-    lastH = h;
-    dhtErrors = 0;
+    lastT = t; lastH = h; dhtErrors = 0;
   } else {
     dhtErrors++;
     if (!isnan(lastT) && !isnan(lastH) && dhtErrors < 10) {
-      t = lastT;
-      h = lastH;
+      t = lastT; h = lastH;
     } else {
       lcd.setCursor(0, 0); lcd.print("LOI DHT11! (#");
       lcd.print(dhtErrors); lcd.print(")  ");
@@ -201,7 +171,7 @@ void loop() {
     }
   }
 
-  // ── Warmup 10 giây (không bật relay) ──
+  // Warmup 10 giây
   if (!warmupDone) {
     if (now < WARMUP_TIME) {
       lcd.setCursor(0, 0);
@@ -210,29 +180,23 @@ void loop() {
       lcd.print("s ");
       lcd.setCursor(0, 1);
       lcd.print("T:"); lcd.print(t, 1);
-      lcd.print(" H:"); lcd.print(h, 1);
-      lcd.print("%    ");
+      lcd.print(" H:"); lcd.print(h, 1); lcd.print("%    ");
       sendStatus(t, h);
       return;
     }
     warmupDone = true;
-    lastFanChange  = now;
-    lastPumpChange = now;
+    lastFanChange = now; lastPumpChange = now;
     Serial.println(F(">> Warmup xong!"));
   }
 
-  // ── Điều khiển tự động (chống giật 5s) ──
-  if (!fanManual && (now - lastFanChange > RELAY_DEBOUNCE)) {
+  // Tự động (chống giật 5s)
+  if (!fanManual && (now - lastFanChange > RELAY_DEBOUNCE))
     setFan(t < TEMP_THRESHOLD);
-  }
-  if (!pumpManual && (now - lastPumpChange > RELAY_DEBOUNCE)) {
+  if (!pumpManual && (now - lastPumpChange > RELAY_DEBOUNCE))
     setPump(h < HUM_THRESHOLD);
-  }
 
-  // ── Gửi JSON ──
   sendStatus(t, h);
 
-  // ── LCD ──
   lcd.setCursor(0, 0);
   lcd.print("T:"); lcd.print(t, 1);
   lcd.print((char)223); lcd.print("C ");
