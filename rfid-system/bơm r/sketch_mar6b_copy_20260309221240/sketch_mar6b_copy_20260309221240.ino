@@ -1,13 +1,16 @@
 /*
  * =====================================================
  *  ESP32 — Cầu nối WiFi/Firebase cho Arduino Mega
- * 
- *  Chức năng:
- *  1. Nhận JSON từ Arduino qua Serial2 (GPIO16/17)
- *  2. Đẩy dữ liệu cảm biến lên Firebase Realtime DB
- *  3. Nhận lệnh điều khiển từ Firebase → gửi cho Arduino
  *
- *  Sau khi nạp code, ESP32 hoạt động độc lập không cần PC
+ *  Arduino gửi JSON qua Serial1 (Pin18/19)
+ *    → ESP32 nhận qua Serial2 (GPIO16/17)
+ *    → Đẩy lên Firebase
+ *
+ *  Web gửi lệnh qua Firebase
+ *    → ESP32 nhận
+ *    → Gửi cho Arduino qua Serial2
+ *
+ *  KHÔNG CẦN MÁY TÍNH SAU KHI NẠP CODE!
  * =====================================================
  */
 
@@ -17,81 +20,81 @@
 #include <ArduinoJson.h>
 
 // =====================================================
-//  ⚙️ CẤU HÌNH WiFi — SỬA THÔNG TIN WiFi CỦA BẠN
+//  ⚙️ WiFi
 // =====================================================
 #define WIFI_SSID     "4G-UFI-0486"
 #define WIFI_PASSWORD "1234567890"
 
 
 // =====================================================
-//  🔥 Firebase — Lấy từ Firebase Console
+//  🔥 Firebase
 // =====================================================
 #define API_KEY       "AIzaSyBoVEofW3IdbppeDdP9ksiIoA_zac0zS5U"
 #define DATABASE_URL  "https://hunganh-doam1-default-rtdb.asia-southeast1.firebasedatabase.app"
 
 // =====================================================
-//  📡 Serial2 — Giao tiếp với Arduino qua TXS0108E
+//  📡 Serial2 — Giao tiếp Arduino qua dây nối trực tiếp
+//     ESP32 GPIO16 (RX) ← Arduino Pin18 (TX1)
+//     ESP32 GPIO17 (TX) → Arduino Pin19 (RX1)
 // =====================================================
-#define RXD2 16  // ESP32 RX ← TXS A1 ← Arduino TX1
-#define TXD2 17  // ESP32 TX → TXS A2 → Arduino RX1
+#define RXD2 16
+#define TXD2 17
 
 // =====================================================
 FirebaseData fbdo;
-FirebaseData streamFbdo;  // Dùng riêng cho stream lệnh
+FirebaseData streamFbdo;
 FirebaseAuth auth;
 FirebaseConfig config;
 
 unsigned long lastSendTime = 0;
-const unsigned long SEND_INTERVAL = 1000; // Gửi Firebase mỗi 1 giây
+const unsigned long SEND_INTERVAL = 2000;
 
 String lastCmdId = "";
-bool firebaseReady = false;
+bool firebaseOK = false;
 
 // =====================================================
 void setup() {
-  Serial.begin(115200);   // Debug qua USB
-  Serial2.begin(9600, SERIAL_8N1, RXD2, TXD2); // UART với Arduino
+  Serial.begin(115200);                          // Debug USB
+  Serial2.begin(9600, SERIAL_8N1, RXD2, TXD2);  // UART Arduino
 
   Serial.println("\n=============================");
-  Serial.println(" ESP32 Firebase Bridge");
+  Serial.println(" ESP32 Firebase Bridge v2");
   Serial.println("=============================");
 
-  // ── Kết nối WiFi ──
+  // ── WiFi ──
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  Serial.print("Dang ket noi WiFi");
-  int wifiTimeout = 0;
-  while (WiFi.status() != WL_CONNECTED && wifiTimeout < 30) {
+  Serial.print("WiFi");
+  int timeout = 0;
+  while (WiFi.status() != WL_CONNECTED && timeout < 30) {
     delay(500);
     Serial.print(".");
-    wifiTimeout++;
+    timeout++;
   }
-  
+
   if (WiFi.status() == WL_CONNECTED) {
-    Serial.println("\n✅ WiFi: " + WiFi.SSID());
-    Serial.println("📶 IP: " + WiFi.localIP().toString());
+    Serial.println("\nWiFi: " + WiFi.SSID());
+    Serial.println("IP: " + WiFi.localIP().toString());
   } else {
-    Serial.println("\n❌ WiFi THAT BAI! Kiem tra ten/mat khau WiFi");
+    Serial.println("\nWiFi THAT BAI!");
     return;
   }
 
-  // ── Kết nối Firebase ──
+  // ── Firebase (Test Mode — No Auth) ──
   config.api_key = API_KEY;
   config.database_url = DATABASE_URL;
-
-  // Thiết lập chế độ Test Mode (bỏ qua Authentication)
   config.signer.test_mode = true;
-  
+
   Firebase.begin(&config, &auth);
   Firebase.reconnectNetwork(true);
-  
-  Serial.println("✅ Firebase: Da bat dau ket noi (No Auth)!");
-  firebaseReady = true;
 
-  // ── Lắng nghe lệnh từ Firebase /control ──
-  if (!Firebase.RTDB.beginStream(&streamFbdo, "/control")) {
-    Serial.println("❌ Stream loi: " + streamFbdo.errorReason());
+  firebaseOK = true;
+  Serial.println("Firebase: OK!");
+
+  // ── Lắng nghe lệnh /control ──
+  if (Firebase.RTDB.beginStream(&streamFbdo, "/control")) {
+    Serial.println("Dang lang nghe lenh tu web...");
   } else {
-    Serial.println("📡 Dang lang nghe lenh tu web...");
+    Serial.println("Stream loi: " + streamFbdo.errorReason());
   }
 
   Serial.println("=============================\n");
@@ -99,22 +102,20 @@ void setup() {
 
 // =====================================================
 void loop() {
-  if (!firebaseReady) return;
+  if (!firebaseOK) return;
 
-  // ── 1. Đọc JSON từ Arduino (qua Serial2) ──
+  // ── 1. Nhận JSON từ Arduino → Đẩy lên Firebase ──
   if (Serial2.available()) {
     String line = Serial2.readStringUntil('\n');
     line.trim();
-    
-    if (line.startsWith("{")) {
-      Serial.println("📥 Arduino: " + line);
-      
-      // Parse JSON
+
+    if (line.startsWith("{") && millis() - lastSendTime > SEND_INTERVAL) {
+      Serial.println("Arduino: " + line);
+
       StaticJsonDocument<256> doc;
       DeserializationError err = deserializeJson(doc, line);
-      
-      if (!err && millis() - lastSendTime > SEND_INTERVAL) {
-        // Đẩy lên Firebase /sensor
+
+      if (!err) {
         FirebaseJson json;
         json.set("t", doc["t"].as<float>());
         json.set("h", doc["h"].as<float>());
@@ -123,9 +124,9 @@ void loop() {
         json.set("updatedAt", (unsigned long)millis());
 
         if (Firebase.RTDB.setJSON(&fbdo, "/sensor", &json)) {
-          Serial.println("✅ Firebase: Da gui du lieu");
+          Serial.println("-> Firebase OK");
         } else {
-          Serial.println("❌ Firebase gui loi: " + fbdo.errorReason());
+          Serial.println("-> Firebase loi: " + fbdo.errorReason());
         }
         lastSendTime = millis();
       }
@@ -135,44 +136,35 @@ void loop() {
   // ── 2. Nhận lệnh từ Firebase → Gửi cho Arduino ──
   if (Firebase.RTDB.readStream(&streamFbdo)) {
     if (streamFbdo.streamAvailable()) {
-      // Đọc dữ liệu từ /control
-      FirebaseJson json;
-      FirebaseJsonData cmdData, tsData, idData;
-      
       if (streamFbdo.dataType() == "json") {
-        json = streamFbdo.jsonObject();
-        
+        FirebaseJson json = streamFbdo.jsonObject();
+        FirebaseJsonData cmdData, idData;
+
         json.get(cmdData, "cmd");
-        json.get(tsData, "ts");
         json.get(idData, "id");
-        
+
         if (cmdData.success) {
           String cmd = cmdData.stringValue;
-          String cmdId = idData.success ? idData.stringValue : tsData.stringValue;
-          
-          // Chỉ xử lý lệnh mới
+          String cmdId = idData.success ? idData.stringValue : String(millis());
+
           if (cmdId != lastCmdId && cmd.length() > 0) {
             lastCmdId = cmdId;
-            
-            // Gửi lệnh xuống Arduino qua Serial2
-            Serial2.println(cmd);
-            Serial.println("📤 Gui Arduino: " + cmd);
+            Serial2.println(cmd);       // Gửi cho Arduino
+            Serial.println("Web -> Arduino: " + cmd);
           }
         }
       }
     }
   } else {
-    Serial.println("❌ Stream loi: " + streamFbdo.errorReason());
-    // Thử kết nối lại stream
-    if (!Firebase.RTDB.beginStream(&streamFbdo, "/control")) {
-      Serial.println("❌ Reconnect stream loi");
-    }
+    Serial.println("Stream mat, thu lai...");
+    Firebase.RTDB.beginStream(&streamFbdo, "/control");
   }
 
   // ── 3. Kiểm tra WiFi ──
   if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("⚠️ WiFi mat ket noi! Dang ket noi lai...");
+    Serial.println("WiFi mat!");
     WiFi.reconnect();
     delay(3000);
   }
 }
+
