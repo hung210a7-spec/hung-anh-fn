@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hung Anh Quản Lí Vào Ra Thông Minh</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #0f172a; color: #f8fafc; font-family: 'Inter', sans-serif; }
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+        }
+        .text-gradient {
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-image: linear-gradient(90deg, #38bdf8, #818cf8);
+        }
+    </style>
+</head>
+<body class="min-h-screen p-4 md:p-8">
+
+    <div class="max-w-4xl mx-auto space-y-6">
+        <!-- Header -->
+        <header class="text-center py-6">
+            <h1 class="text-4xl font-bold text-gradient mb-2">Hùng Anh Smart Access</h1>
+            <p class="text-slate-400">Hệ thống quản lý vào ra thông minh (RFID & Web)</p>
+        </header>
+
+        <!-- Stats Row -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="glass-panel p-6 text-center">
+                <h3 class="text-slate-400 text-sm uppercase tracking-wide">Trạng thái cửa</h3>
+                <div class="mt-2 text-2xl font-bold text-emerald-400 flex items-center justify-center gap-2">
+                    <span id="door-status">Đang Khóa 🔒</span>
+                </div>
+            </div>
+            
+            <div class="glass-panel p-6 text-center">
+                <h3 class="text-slate-400 text-sm uppercase tracking-wide">Lượt khách hôm nay</h3>
+                <div class="mt-2 text-3xl font-bold text-white" id="today-count">0</div>
+            </div>
+
+            <div class="glass-panel p-6 flex items-center justify-center">
+                <button id="btn-open-door" class="w-full h-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-6 rounded-lg transition-all shadow-lg shadow-blue-500/30 flex items-center justify-center gap-2">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"></path></svg>
+                    MỞ CỬA TỪ XA
+                </button>
+            </div>
+        </div>
+
+        <!-- Logs Table -->
+        <div class="glass-panel overflow-hidden">
+            <div class="p-4 border-b border-white/10 flex justify-between items-center">
+                <h2 class="text-xl font-semibold">Nhật Ký Quẹt Thẻ (Real-time)</h2>
+                <div class="flex items-center gap-2 text-sm text-slate-400">
+                    <span class="relative flex h-3 w-3">
+                      <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span class="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                    </span>
+                    Live Syncing
+                </div>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-white/5 text-slate-300 text-sm uppercase tracking-wider">
+                            <th class="p-4 font-medium">Thời Gian</th>
+                            <th class="p-4 font-medium">Người Bấm/Quẹt</th>
+                            <th class="p-4 font-medium">Mã Thẻ (UID)</th>
+                            <th class="p-4 font-medium">Trạng Thái</th>
+                        </tr>
+                    </thead>
+                    <tbody id="logs-table-body" class="divide-y divide-white/5">
+                        <!-- Rows will be populated by JS -->
+                        <tr><td colspan="4" class="p-4 text-center text-slate-500 italic">Đang tải dữ liệu từ Firestore...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase SDK (Modular v9) -->
+    <script type="module" src="app.js"></script>
+
+</body>
+</html>
