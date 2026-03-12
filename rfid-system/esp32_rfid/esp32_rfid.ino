@@ -18,9 +18,11 @@
 #define USER_PASSWORD ""
 
 // ---------------- 2. CẤU HÌNH CHÂN RC522 ----------------
-#define SS_PIN  5   // SDA
-#define RST_PIN 4   // RST
-// Chân SPI mặc định (SCK=18, MISO=19, MOSI=23) đã nối theo sơ đồ 38-pin
+#define SS_PIN    5   // SDA
+#define RST_PIN   4   // RST
+#define SCK_PIN   18  // SCK
+#define MISO_PIN  19  // MISO
+#define MOSI_PIN  23  // MOSI
 
 MFRC522 rfid(SS_PIN, RST_PIN);
 
@@ -38,7 +40,7 @@ void setup() {
   delay(1000);
   
   // 1. Khởi tạo SPI và RC522
-  SPI.begin();
+  SPI.begin(SCK_PIN, MISO_PIN, MOSI_PIN, SS_PIN);
   rfid.PCD_Init();
   Serial.println("\n[RC522] Kiem tra phien ban Firmware:");
   rfid.PCD_DumpVersionToSerial();

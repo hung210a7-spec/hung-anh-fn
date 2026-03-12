@@ -28,7 +28,6 @@ MFRC522 rfid(SS_PIN, RST_PIN);
 FirebaseData fbdo;
 FirebaseAuth auth;
 FirebaseConfig config;
-bool signupOK = false;
 
 // Biến lưu thời gian
 unsigned long lastSwipeTime = 0;
@@ -40,7 +39,9 @@ void setup() {
   // 1. Khởi tạo SPI và RC522
   SPI.begin();
   rfid.PCD_Init();
-  Serial.println("\n[RC522] Dã san sang doc the...");
+  Serial.println("\n[RC522] Kiem tra phien ban Firmware:");
+  rfid.PCD_DumpVersionToSerial();
+  Serial.println("[RC522] Dã san sang doc the...");
 
   // 2. Kết nối WiFi
   Serial.print("[WiFi] Dang ket noi mang: ");
@@ -65,18 +66,13 @@ void setup() {
 }
 
 void loop() {
-  // Chỉ đọc thẻ mới nếu đã qua 3 giây từ lần quẹt cuối (chống spam)
   if (millis() - lastSwipeTime < 3000) return;
 
-  // Kiểm tra có thẻ đặt vào không
   if (!rfid.PICC_IsNewCardPresent()) return;
-  
-  // Đọc mã thẻ
   if (!rfid.PICC_ReadCardSerial()) return;
 
   lastSwipeTime = millis();
 
-  // Ghép các byte thành chuỗi UID (Ví dụ: F5E6D7C8)
   String uid = "";
   for (byte i = 0; i < rfid.uid.size; i++) {
     if(rfid.uid.uidByte[i] < 0x10) uid += "0";
@@ -88,41 +84,28 @@ void loop() {
   Serial.print(">> The vua quet UID: ");
   Serial.println(uid);
 
-  // Tạm dừng đọc thẻ tiếp theo
   rfid.PICC_HaltA();
   rfid.PCD_StopCrypto1();
 
-  // Gửi lên Firestore
   sendLogToFirestore(uid);
 }
 
-// Hàm gửi Dữ liệu lên Firestore
 void sendLogToFirestore(String uidStr) {
   if (Firebase.ready()) {
     Serial.println("[Firestore] Dang gui log le mang...");
-    
-    // Đường dẫn collection trên Firestore (Project ID phải đúng)
-    String documentPath = "logs/"; // Firebase lưu tự sinh ID doc
-
-    // Tạo nội dung JSON để ghi vào Firestore
+    String documentPath = "logs/"; 
     FirebaseJson content;
     
-    // Đây là cấu trúc bắt buộc của REST API Firestore: {"fields": {"key": {"stringValue": "value"}}}
     content.set("fields/uid/stringValue", uidStr);
     
-    // Tạm thời nếu UID là 1 mã bạn đang có, đặt tên là Hung Anh
-    // Ở bản sau, ESP32 sẽ tự "hỏi" Firestore xem thẻ này tên gì.
     String userName = "Khách Lạ";
-    if (uidStr == "D3BF320A" || uidStr == "A1B2C3D4") { // Thay bằng UID thẻ xanh của bạn
+    if (uidStr == "D3BF320A" || uidStr == "A1B2C3D4") { 
       userName = "Hung Anh";
     }
     content.set("fields/name/stringValue", userName);
     content.set("fields/status/stringValue", "Da Quet The");
-    
-    // Lấy timestamp từ Firebase Server (vẫn dùng kiểu String tạm thời cho dễ xử lý)
     content.set("fields/timestamp/stringValue", "SERVER_TIMESTAMP_LATER"); 
 
-    // Tạo Document MỚI
     if (Firebase.Firestore.createDocument(&fbdo, PROJECT_ID, "", documentPath.c_str(), content.raw())) {
         Serial.printf(">> GHI THANH CONG! Nguoi quet: %s\n", userName.c_str());
     } else {
