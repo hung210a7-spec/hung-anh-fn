@@ -40,7 +40,9 @@ void setup() {
   // 1. Khởi tạo SPI và RC522
   SPI.begin();
   rfid.PCD_Init();
-  Serial.println("\n[RC522] Dã san sang doc the...");
+  Serial.println("\n[RC522] Kiem tra phien ban Firmware:");
+  rfid.PCD_DumpVersionToSerial();
+  Serial.println("[RC522] Dã san sang doc the...");
 
   // 2. Kết nối WiFi
   Serial.print("[WiFi] Dang ket noi mang: ");

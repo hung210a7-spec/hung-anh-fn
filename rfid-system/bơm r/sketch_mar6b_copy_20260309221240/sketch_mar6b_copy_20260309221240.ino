@@ -1,216 +1,134 @@
-/*
- * =====================================================
- *  Arduino Mega 2560 — v4.2 Realtime Sync
- *  2 Relay riêng + DHT11 + LCD I2C
- *
- *  Nối dây:
- *    Pin 8  → Relay quạt (kích HIGH = bật)
- *    Pin 9  → Relay bơm  (kích HIGH = bật)
- *    Pin 7  → DHT11 DATA
- *    SDA/SCL → LCD I2C
- *
- *  Tương thích: USB + ESP32 cùng lúc
- * =====================================================
- */
+// ESP32 RFID Access Control - Core V1 (Firebase Firestore)
+// Tính năng: Đọc thẻ RC522 -> Hiện UID -> Gửi Log lên Firestore
 
-#include <Wire.h>
-#include <LiquidCrystal_I2C.h>
-#include "DHT.h"
+#include <SPI.h>
+#include <MFRC522.h>
+#include <WiFi.h>
+#include <Firebase_ESP_Client.h>
+#include <addons/TokenHelper.h>
 
-// ── Chân kết nối ──
-#define DHTPIN         7
-#define RELAY_PIN      8   // Quạt (relay riêng)
-#define PUMP_PIN       9   // Bơm  (relay riêng)
-#define DHTTYPE        DHT11
+// ---------------- 1. CẤU HÌNH WIFI & FIREBASE ----------------
+#define WIFI_SSID     "Hung Minh"
+#define WIFI_PASSWORD "23456789"
 
-// ── Ngưỡng tự động ──
-#define TEMP_THRESHOLD 20.0
-#define HUM_THRESHOLD  75.0
+#define API_KEY       "AIzaSyBoVEofW3IdbppeDdP9ksiIoA_zac0zS5U"
+#define PROJECT_ID    "hunganh-doam1" // Trích xuất từ URL Database cũ
+// Dùng Test Mode nên mượn tạm Account ẩn danh hoặc bỏ qua auth
+#define USER_EMAIL    ""
+#define USER_PASSWORD ""
 
-// ── 2 relay riêng: cả 2 đều kích HIGH = bật ──
-#define FAN_ON   HIGH
-#define FAN_OFF  LOW
-#define PUMP_ON  HIGH
-#define PUMP_OFF LOW
+// ---------------- 2. CẤU HÌNH CHÂN RC522 ----------------
+#define SS_PIN  5   // SDA
+#define RST_PIN 4   // RST
+// Chân SPI mặc định (SCK=18, MISO=19, MOSI=23) đã nối theo sơ đồ 38-pin
 
-// ── Thời gian (ms) ──
-#define SENSOR_INTERVAL  3000   // Đọc DHT mỗi 3 giây
-#define RELAY_DEBOUNCE   5000   // Chống giật relay 5 giây
-#define WARMUP_TIME      10000  // 10 giây chờ ổn định nguồn
+MFRC522 rfid(SS_PIN, RST_PIN);
 
-DHT dht(DHTPIN, DHTTYPE);
-LiquidCrystal_I2C lcd(0x27, 16, 2);
+// ---------------- 3. KHỞI TẠO FIREBASE ----------------
+FirebaseData fbdo;
+FirebaseAuth auth;
+FirebaseConfig config;
+bool signupOK = false;
 
-bool fanState   = false;
-bool pumpState  = false;
-bool fanManual  = false;
-bool pumpManual = false;
-bool warmupDone = false;
+// Biến lưu thời gian
+unsigned long lastSwipeTime = 0;
 
-float lastT = NAN, lastH = NAN;
-int   dhtErrors = 0;
-
-unsigned long lastSensorTime = 0;
-unsigned long lastFanChange  = 0;
-unsigned long lastPumpChange = 0;
-
-char jsonBuf[100];
-
-// =====================================================
-void setFan(bool on) {
-  if (fanState == on) return;
-  fanState = on;
-  digitalWrite(RELAY_PIN, on ? FAN_ON : FAN_OFF);
-  lastFanChange = millis();
-}
-
-void setPump(bool on) {
-  if (pumpState == on) return;
-  pumpState = on;
-  digitalWrite(PUMP_PIN, on ? PUMP_ON : PUMP_OFF);
-  lastPumpChange = millis();
-}
-
-// Gửi JSON qua cả USB và ESP32
-void sendStatus(float t, float h) {
-  snprintf(jsonBuf, sizeof(jsonBuf),
-    "{\"t\":%.1f,\"h\":%.1f,\"fan\":%s,\"pump\":%s}",
-    t, h,
-    fanState  ? "true" : "false",
-    pumpState ? "true" : "false"
-  );
-  Serial.println(jsonBuf);
-  Serial1.println(jsonBuf);
-}
-
-// Đọc lệnh Serial (dùng String cho an toàn & dễ xử lý lệnh ngắn)
-void checkSerial(Stream &port, const char* tag) {
-  if (!port.available()) return;
-  
-  String cmd = port.readStringUntil('\n');
-  cmd.trim();
-  if (cmd.length() == 0) return;
-
-  Serial.print(tag); Serial.println(cmd);
-
-  // Không cho phép điều khiển nếu đang trong thời gian warmup (để chống reset)
-  if (!warmupDone) {
-    Serial.println(F("Dang warmup, tu choi lenh!"));
-    return;
-  }
-
-  bool changed = false;
-  if (cmd == "FAN:ON")   { fanManual  = true;  setFan(true);   changed = true; }
-  if (cmd == "FAN:OFF")  { fanManual  = true;  setFan(false);  changed = true; }
-  if (cmd == "PUMP:ON")  { pumpManual = true;  setPump(true);  changed = true; }
-  if (cmd == "PUMP:OFF") { pumpManual = true;  setPump(false); changed = true; }
-  if (cmd == "AUTO")     { fanManual  = false; pumpManual = false; changed = true; }
-
-  // Gửi trạng thái ngay lập tức để web cập nhật tức thời (thời gian thực)!
-  if (changed) {
-    sendStatus(lastT, lastH);
-  }
-}
-
-// Đọc DHT11 (retry 3 lần)
-bool readDHT(float &t, float &h) {
-  for (int i = 0; i < 3; i++) {
-    h = dht.readHumidity();
-    t = dht.readTemperature();
-    if (!isnan(h) && !isnan(t) && t > -10 && t < 60 && h > 0 && h < 100)
-      return true;
-    delay(100);
-  }
-  return false;
-}
-
-// =====================================================
 void setup() {
-  Serial.begin(9600);
-  Serial1.begin(9600);
+  Serial.begin(115200);
+  delay(1000);
+  
+  // 1. Khởi tạo SPI và RC522
+  SPI.begin();
+  rfid.PCD_Init();
+  Serial.println("\n[RC522] Dã san sang doc the...");
 
-  pinMode(RELAY_PIN, OUTPUT);
-  pinMode(PUMP_PIN, OUTPUT);
-  digitalWrite(RELAY_PIN, FAN_OFF);
-  digitalWrite(PUMP_PIN, PUMP_OFF);
+  // 2. Kết nối WiFi
+  Serial.print("[WiFi] Dang ket noi mang: ");
+  Serial.println(WIFI_SSID);
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("\n[WiFi] Da ket noi! IP: " + WiFi.localIP().toString());
 
-  lcd.init();
-  lcd.backlight();
-  lcd.setCursor(0, 0);
-  lcd.print("  Khoi dong...  ");
-  lcd.setCursor(0, 1);
-  lcd.print("  v4.2  2-Relay ");
+  // 3. Khởi tạo Firebase Firestore
+  config.api_key = API_KEY;
+  // Bật Test Mode để bỏ qua đăng nhập Auth (giống bên Realtime DB)
+  config.signer.test_mode = true;
 
-  dht.begin();
-  delay(3000);
-  lcd.clear();
+  // Cấu trúc Firestore Payload
+  Firebase.begin(&config, &auth);
+  Firebase.reconnectWiFi(true);
 
-  lastFanChange  = millis();
-  lastPumpChange = millis();
-
-  Serial.println(F("Arduino v4.2 - Thay doi tuc thi"));
-  Serial1.println(F("Arduino v4.2 - Thay doi tuc thi"));
+  Serial.println("[Firebase] Da khoi tao. Xin moi quet the!");
 }
 
-// =====================================================
 void loop() {
-  checkSerial(Serial,  "[USB] ");
-  checkSerial(Serial1, "[ESP] ");
+  // Chỉ đọc thẻ mới nếu đã qua 3 giây từ lần quẹt cuối (chống spam)
+  if (millis() - lastSwipeTime < 3000) return;
 
-  unsigned long now = millis();
-  if (now - lastSensorTime < SENSOR_INTERVAL) return;
-  lastSensorTime = now;
+  // Kiểm tra có thẻ đặt vào không
+  if (!rfid.PICC_IsNewCardPresent()) return;
+  
+  // Đọc mã thẻ
+  if (!rfid.PICC_ReadCardSerial()) return;
 
-  float t, h;
-  if (readDHT(t, h)) {
-    lastT = t; lastH = h; dhtErrors = 0;
-  } else {
-    dhtErrors++;
-    if (!isnan(lastT) && !isnan(lastH)) {
-      t = lastT; h = lastH;  // Dùng giá trị cũ
+  lastSwipeTime = millis();
+
+  // Ghép các byte thành chuỗi UID (Ví dụ: F5E6D7C8)
+  String uid = "";
+  for (byte i = 0; i < rfid.uid.size; i++) {
+    if(rfid.uid.uidByte[i] < 0x10) uid += "0";
+    uid += String(rfid.uid.uidByte[i], HEX);
+  }
+  uid.toUpperCase();
+
+  Serial.println("\n============================");
+  Serial.print(">> The vua quet UID: ");
+  Serial.println(uid);
+
+  // Tạm dừng đọc thẻ tiếp theo
+  rfid.PICC_HaltA();
+  rfid.PCD_StopCrypto1();
+
+  // Gửi lên Firestore
+  sendLogToFirestore(uid);
+}
+
+// Hàm gửi Dữ liệu lên Firestore
+void sendLogToFirestore(String uidStr) {
+  if (Firebase.ready()) {
+    Serial.println("[Firestore] Dang gui log le mang...");
+    
+    // Đường dẫn collection trên Firestore (Project ID phải đúng)
+    String documentPath = "logs/"; // Firebase lưu tự sinh ID doc
+
+    // Tạo nội dung JSON để ghi vào Firestore
+    FirebaseJson content;
+    
+    // Đây là cấu trúc bắt buộc của REST API Firestore: {"fields": {"key": {"stringValue": "value"}}}
+    content.set("fields/uid/stringValue", uidStr);
+    
+    // Tạm thời nếu UID là 1 mã bạn đang có, đặt tên là Hung Anh
+    // Ở bản sau, ESP32 sẽ tự "hỏi" Firestore xem thẻ này tên gì.
+    String userName = "Khách Lạ";
+    if (uidStr == "D3BF320A" || uidStr == "A1B2C3D4") { // Thay bằng UID thẻ xanh của bạn
+      userName = "Hung Anh";
+    }
+    content.set("fields/name/stringValue", userName);
+    content.set("fields/status/stringValue", "Da Quet The");
+    
+    // Lấy timestamp từ Firebase Server (vẫn dùng kiểu String tạm thời cho dễ xử lý)
+    content.set("fields/timestamp/stringValue", "SERVER_TIMESTAMP_LATER"); 
+
+    // Tạo Document MỚI
+    if (Firebase.Firestore.createDocument(&fbdo, PROJECT_ID, "", documentPath.c_str(), content.raw())) {
+        Serial.printf(">> GHI THANH CONG! Nguoi quet: %s\n", userName.c_str());
     } else {
-      t = 25.0; h = 50.0;    // Giá trị mặc định (relay vẫn chạy!)
+        Serial.println(">> LAI DOC ERROR: " + fbdo.errorReason());
     }
-    if (dhtErrors % 5 == 1) { // Hiển thị lỗi nhưng KHÔNG dừng
-      lcd.setCursor(0, 0); lcd.print("DHT11 loi! (#");
-      lcd.print(dhtErrors); lcd.print(")  ");
-      lcd.setCursor(0, 1); lcd.print("Van dieu khien  ");
-    }
+  } else {
+    Serial.println("[Lỗi] Firebase chua san sang, ko the gui log.");
   }
-
-  // Warmup 10 giây
-  if (!warmupDone) {
-    if (now < WARMUP_TIME) {
-      lcd.setCursor(0, 0);
-      lcd.print("On dinh nguon ");
-      lcd.print((WARMUP_TIME - now) / 1000);
-      lcd.print("s ");
-      lcd.setCursor(0, 1);
-      lcd.print("T:"); lcd.print(t, 1);
-      lcd.print(" H:"); lcd.print(h, 1); lcd.print("%    ");
-      sendStatus(t, h);
-      return;
-    }
-    warmupDone = true;
-    lastFanChange = now; lastPumpChange = now;
-    Serial.println(F(">> Warmup xong!"));
-  }
-
-  // Tự động (chống giật 5s)
-  if (!fanManual && (now - lastFanChange > RELAY_DEBOUNCE))
-    setFan(t < TEMP_THRESHOLD);
-  if (!pumpManual && (now - lastPumpChange > RELAY_DEBOUNCE))
-    setPump(h < HUM_THRESHOLD);
-
-  sendStatus(t, h);
-
-  lcd.setCursor(0, 0);
-  lcd.print("T:"); lcd.print(t, 1);
-  lcd.print((char)223); lcd.print("C ");
-  lcd.print(fanState ? "QUAT:ON " : "QUAT:OFF");
-
-  lcd.setCursor(0, 1);
-  lcd.print("H:"); lcd.print(h, 1);
-  lcd.print("% ");
-  lcd.print(pumpState ? "BOM:ON  " : "BOM:OFF ");
 }
